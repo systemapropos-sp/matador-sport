@@ -8,6 +8,9 @@ import PendingPaymentsModal from './PendingPaymentsModal';
 import DuplicateTicketModal from './DuplicateTicketModal';
 import DuplicatePlaysModal from './DuplicatePlaysModal';
 import PagarModal from './PagarModal';
+import PrintTicketModal from './PrintTicketModal';
+import ShareTicketModal from './ShareTicketModal';
+import EmailReportModal from './EmailReportModal';
 
 export default function ModalManager() {
   const { modalState, closeModal } = useModalContext();
@@ -31,6 +34,12 @@ export default function ModalManager() {
       return <DuplicatePlaysModal open={true} onClose={closeModal} />;
     case 'pagar':
       return <PagarModal open={true} onClose={closeModal} />;
+    case 'printTicket':
+      return <PrintTicketModal open={true} onClose={closeModal} {...(modalState.props as Record<string, unknown>)} />;
+    case 'shareTicket':
+      return <ShareTicketModal open={true} onClose={closeModal} {...(modalState.props as Record<string, unknown>)} />;
+    case 'emailReport':
+      return <EmailReportModal open={true} onClose={closeModal} {...(modalState.props as Record<string, unknown>)} />;
     default:
       return null;
   }

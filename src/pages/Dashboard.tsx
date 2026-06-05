@@ -10,7 +10,9 @@ import {
   Keyboard,
   Ticket,
   ChevronDown,
+  Share2,
 } from 'lucide-react';
+import { useModalContext } from '@/components/modals';
 import Layout from '@/components/Layout';
 import LotterySelector from '@/components/LotterySelector';
 import GameTable from '@/components/GameTable';
@@ -495,6 +497,9 @@ export default function Dashboard() {
   // Ticket state
   const { createTicket, recentTickets } = useTicket();
 
+  // Modal context for print/share modals
+  const { openModal, closeModal } = useModalContext();
+
   // Lottery selection
   const [selectedLotteries, setSelectedLotteries] = useState<string[]>(['florida-pm']);
   const [multiSelect, setMultiSelect] = useState(false);
@@ -570,6 +575,40 @@ export default function Dashboard() {
     return added;
   }, [jugada, monto, selectedLotteries, addPlay, isAtCapacity, showToast]);
 
+  // Open share modal helper
+  const openShareModal = useCallback((ticketData: {
+    ticketNumber: string;
+    plays: typeof plays;
+    totalAmount: number;
+    createdAt: Date;
+  }) => {
+    openModal('shareTicket', {
+      ticketNumber: ticketData.ticketNumber,
+      plays: ticketData.plays,
+      totalAmount: ticketData.totalAmount,
+      createdAt: ticketData.createdAt,
+    });
+  }, [openModal]);
+
+  // Open print modal helper
+  const openPrintModal = useCallback((ticketData: {
+    ticketNumber: string;
+    plays: typeof plays;
+    totalAmount: number;
+    createdAt: Date;
+  }) => {
+    openModal('printTicket', {
+      ticketNumber: ticketData.ticketNumber,
+      plays: ticketData.plays,
+      totalAmount: ticketData.totalAmount,
+      createdAt: ticketData.createdAt,
+      onShare: () => {
+        closeModal();
+        setTimeout(() => openShareModal(ticketData), 100);
+      },
+    });
+  }, [openModal, closeModal, openShareModal]);
+
   // Create ticket callback
   const handleCreateTicket = useCallback(() => {
     if (plays.length === 0) {
@@ -583,8 +622,17 @@ export default function Dashboard() {
       clearPlays();
       setJugada('');
       setMonto('');
+      // Show print modal with the new ticket
+      setTimeout(() => {
+        openPrintModal({
+          ticketNumber: ticket.ticketNumber,
+          plays: [...ticket.plays],
+          totalAmount: ticket.totalAmount,
+          createdAt: new Date(ticket.createdAt),
+        });
+      }, 300);
     }
-  }, [plays, createTicket, clearPlays, showToast]);
+  }, [plays, createTicket, clearPlays, showToast, openPrintModal]);
 
   // Copy plays to clipboard
   const handleCopyPlays = useCallback(() => {
@@ -609,6 +657,20 @@ export default function Dashboard() {
     window.print();
   }, []);
 
+  // Trigger share modal (for current plays as draft)
+  const handleShare = useCallback(() => {
+    if (plays.length === 0) {
+      showToast('No hay jugadas para compartir');
+      return;
+    }
+    openShareModal({
+      ticketNumber: 'BORRADOR',
+      plays: [...plays],
+      totalAmount: totalAmount,
+      createdAt: new Date(),
+    });
+  }, [plays, totalAmount, showToast, openShareModal]);
+
   // Set quick amount
   const handleQuickAmount = useCallback((amount: number) => {
     setMonto(amount.toString());
@@ -622,6 +684,23 @@ export default function Dashboard() {
   const handleMenuToast = useCallback((message: string) => {
     showToast(message);
   }, [showToast]);
+
+  // Listen for openPrintTicket events from TicketMonitorModal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        openPrintModal({
+          ticketNumber: detail.ticketNumber,
+          plays: detail.plays || [],
+          totalAmount: detail.totalAmount || 0,
+          createdAt: detail.createdAt ? new Date(detail.createdAt) : new Date(),
+        });
+      }
+    };
+    window.addEventListener('openPrintTicket', handler);
+    return () => window.removeEventListener('openPrintTicket', handler);
+  }, [openPrintModal]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -738,6 +817,7 @@ export default function Dashboard() {
             title="Copiar jugadas al portapapeles"
           />
           <IconButton icon={Printer} onClick={handlePrint} title="Imprimir" />
+          <IconButton icon={Share2} onClick={handleShare} title="Compartir ticket" />
           <QuickAmountDropdown onSelectAmount={handleQuickAmount} />
           <div data-help-panel className="relative">
             <IconButton

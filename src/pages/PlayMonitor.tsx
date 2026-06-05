@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,7 +10,6 @@ import {
 import { format } from 'date-fns';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableHeader,
@@ -47,7 +46,7 @@ interface LotteryOption {
   period: 'AM' | 'PM' | 'Evening' | 'Night';
 }
 
-const lotteryOptions: LotteryOption[] = [
+export const lotteryOptions: LotteryOption[] = [
   // AM (Morning)
   { id: 'anguila-10am', label: 'Anguila 10AM', period: 'AM' },
   { id: 'la-primera', label: 'LA PRIMERA', period: 'AM' },
@@ -109,6 +108,27 @@ function readMonitorData(): MonitoredPlay[] {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Play type helpers                                                  */
+/* ------------------------------------------------------------------ */
+
+type PlayCategory = 'directo' | 'pale' | 'tripleta';
+
+function categorizePlay(tipo: string): PlayCategory {
+  const t = tipo.toLowerCase();
+  if (t === 'directo') return 'directo';
+  if (t === 'pale' || t === 'super-pale') return 'pale';
+  if (t === 'tripleta') return 'tripleta';
+  // Default based on jugada length
+  return 'directo';
+}
+
+const categoryLabels: Record<PlayCategory, string> = {
+  directo: 'Directo',
+  pale: 'Pale',
+  tripleta: 'Tripleta',
+};
+
+/* ------------------------------------------------------------------ */
 /*  Main page component                                                */
 /* ------------------------------------------------------------------ */
 
@@ -117,7 +137,7 @@ export default function PlayMonitor() {
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const [selectedDate, setSelectedDate] = useState(today);
-  const [selectedLotteries, setSelectedLotteries] = useState<string[]>(allLotteryIds);
+  const [selectedLottery, setSelectedLottery] = useState<string>(allLotteryIds[0]);
   const [loading, setLoading] = useState(false);
   const [plays, setPlays] = useState<MonitoredPlay[]>([]);
   const [_hasRefreshed, setHasRefreshed] = useState(false);
@@ -131,35 +151,48 @@ export default function PlayMonitor() {
     }
   }, []);
 
-  /* Filter plays by date and selected lotteries */
+  /* Filter plays by date and selected lottery */
   const filtered = plays.filter((p) => {
     const dateMatch = !selectedDate || p.date === selectedDate;
-    const lotteryMatch = selectedLotteries.includes(p.lottery);
+    const lotteryMatch = p.lottery === selectedLottery;
     return dateMatch && lotteryMatch;
   });
 
-  /* Checkbox handlers */
-  const toggleLottery = useCallback((id: string) => {
-    setSelectedLotteries((prev) => {
-      if (prev.includes(id)) {
-        // Don't allow unchecking the last one
-        if (prev.length === 1) return prev;
-        return prev.filter((x) => x !== id);
-      }
-      return [...prev, id];
-    });
-  }, []);
+  /* Get selected lottery label */
+  const selectedLotteryLabel = useMemo(() => {
+    return lotteryOptions.find((l) => l.id === selectedLottery)?.label || selectedLottery;
+  }, [selectedLottery]);
 
-  const selectAll = useCallback(() => {
-    setSelectedLotteries(allLotteryIds);
-  }, []);
+  /* Group filtered plays by category */
+  const playsByCategory: Record<PlayCategory, MonitoredPlay[]> = {
+    directo: [],
+    pale: [],
+    tripleta: [],
+  };
 
-  const deselectAll = useCallback(() => {
-    // Keep at least one
-    setSelectedLotteries([allLotteryIds[0]]);
-  }, []);
+  filtered.forEach((p) => {
+    const cat = categorizePlay(p.tipo);
+    playsByCategory[cat].push(p);
+  });
 
-  void selectedLotteries; // avoid unused warning for selection logic
+  /* Total for the selected sorteo */
+  const sorteoTotal = filtered.reduce((sum, p) => sum + p.monto, 0);
+
+  /* Category totals */
+  const categoryTotals: Record<PlayCategory, { count: number; total: number }> = {
+    directo: {
+      count: playsByCategory.directo.length,
+      total: playsByCategory.directo.reduce((s, p) => s + p.monto, 0),
+    },
+    pale: {
+      count: playsByCategory.pale.length,
+      total: playsByCategory.pale.reduce((s, p) => s + p.monto, 0),
+    },
+    tripleta: {
+      count: playsByCategory.tripleta.length,
+      total: playsByCategory.tripleta.reduce((s, p) => s + p.monto, 0),
+    },
+  };
 
   /* Actions */
   const handleRefresh = useCallback(() => {
@@ -194,7 +227,7 @@ export default function PlayMonitor() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
   };
 
-  /* Group lotteries by period */
+  /* Group lotteries by period for dropdown */
   const grouped = lotteryOptions.reduce<Record<string, LotteryOption[]>>(
     (acc, opt) => {
       if (!acc[opt.period]) acc[opt.period] = [];
@@ -231,18 +264,54 @@ export default function PlayMonitor() {
           </h1>
         </motion.div>
 
-        {/* ====== DATE FILTER ====== */}
+        {/* ====== TOTAL SUMMARY FOR SELECTED SORTEO ====== */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.15 }}
+          style={{
+            padding: '14px 16px',
+            backgroundColor: '#f5f5f5',
+            borderBottom: '1px solid #e0e0e0',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#333333',
+            }}
+          >
+            Total para sorteo {selectedLotteryLabel}:{' '}
+          </span>
+          <span
+            style={{
+              fontSize: '18px',
+              fontWeight: 700,
+              color: '#337ab7',
+            }}
+          >
+            {formatCurrencyLong(sorteoTotal)}
+          </span>
+        </motion.div>
+
+        {/* ====== FILTERS ROW: Date + Sorteo Dropdown ====== */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: 0.15 }}
+          transition={{ duration: 0.25, delay: 0.2 }}
           style={{
             background: '#ffffff',
             padding: '16px',
             borderBottom: '1px solid #e0e0e0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '16px',
+            alignItems: 'flex-end',
           }}
         >
-          <div className="flex flex-col gap-1" style={{ width: '200px' }}>
+          {/* Date picker */}
+          <div className="flex flex-col gap-1" style={{ width: '160px' }}>
             <label
               style={{
                 fontSize: '12px',
@@ -272,142 +341,52 @@ export default function PlayMonitor() {
               }}
             />
           </div>
-        </motion.div>
 
-        {/* ====== SORTEOS FILTER (Fieldset) ====== */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: 0.2 }}
-          style={{
-            margin: '0 16px 16px',
-            marginTop: '16px',
-          }}
-        >
-          <fieldset
-            style={{
-              background: '#fafafa',
-              padding: '16px',
-              border: '1px solid #e0e0e0',
-              borderRadius: '6px',
-              position: 'relative',
-            }}
-          >
-            {/* Legend */}
-            <legend
+          {/* Sorteo dropdown */}
+          <div className="flex flex-col gap-1" style={{ minWidth: '220px', flex: 1, maxWidth: '400px' }}>
+            <label
               style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#555555',
-                padding: '0 8px',
-                background: '#fafafa',
-              }}
-            >
-              Sorteos
-            </legend>
-
-            {/* Select all / deselect */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '16px',
-                marginBottom: '12px',
                 fontSize: '12px',
+                fontWeight: 500,
+                color: '#555555',
               }}
             >
-              <button
-                onClick={selectAll}
-                className="text-[#337ab7] hover:underline"
-                style={{ fontSize: '12px', fontWeight: 500 }}
-              >
-                Seleccionar todos
-              </button>
-              <button
-                onClick={deselectAll}
-                className="text-[#777777] hover:underline"
-                style={{ fontSize: '12px', fontWeight: 500 }}
-              >
-                Deseleccionar todos
-              </button>
-            </div>
-
-            {/* Period groups */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              Sorteo
+            </label>
+            <select
+              value={selectedLottery}
+              onChange={(e) => setSelectedLottery(e.target.value)}
+              style={{
+                height: '40px',
+                padding: '0 12px',
+                border: '1px solid #cccccc',
+                borderRadius: '4px',
+                fontSize: '14px',
+                outline: 'none',
+                backgroundColor: '#ffffff',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#337ab7';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#cccccc';
+              }}
+            >
               {periods.map((period) => {
                 const items = grouped[period];
                 if (!items || items.length === 0) return null;
                 return (
-                  <div key={period}>
-                    {/* Period label */}
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#777777',
-                        textTransform: 'uppercase',
-                        marginBottom: '8px',
-                        letterSpacing: '0.5px',
-                      }}
-                    >
-                      {periodLabels[period]}
-                    </div>
-                    {/* Checkbox grid */}
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns:
-                          'repeat(auto-fill, minmax(200px, 1fr))',
-                        gap: '10px 16px',
-                      }}
-                    >
-                      {items.map((lottery) => {
-                        const checked = selectedLotteries.includes(lottery.id);
-                        return (
-                          <motion.div
-                            key={lottery.id}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.2 }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                            }}
-                          >
-                            <Checkbox
-                              id={`lottery-${lottery.id}`}
-                              checked={checked}
-                              onCheckedChange={() => toggleLottery(lottery.id)}
-                              style={{
-                                width: '16px',
-                                height: '16px',
-                                borderRadius: '3px',
-                                border: checked
-                                  ? '2px solid #5cb85c'
-                                  : '2px solid #cccccc',
-                                backgroundColor: checked ? '#5cb85c' : 'transparent',
-                              }}
-                            />
-                            <label
-                              htmlFor={`lottery-${lottery.id}`}
-                              style={{
-                                fontSize: '13px',
-                                color: '#333333',
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                              }}
-                            >
-                              {lottery.label}
-                            </label>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <optgroup key={period} label={periodLabels[period]}>
+                    {items.map((lottery) => (
+                      <option key={lottery.id} value={lottery.id}>
+                        {lottery.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 );
               })}
-            </div>
-          </fieldset>
+            </select>
+          </div>
         </motion.div>
 
         {/* ====== ACTION BUTTONS ====== */}
@@ -474,7 +453,7 @@ export default function PlayMonitor() {
             }}
           >
             <Printer size={14} className="mr-1.5" />
-            print
+            Print
           </Button>
 
           {/* Volver a punto de venta */}
@@ -501,14 +480,14 @@ export default function PlayMonitor() {
           </Button>
         </motion.div>
 
-        {/* ====== RESULTS AREA ====== */}
+        {/* ====== RESULTS AREA: 3 Separate Tables ====== */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.3 }}
           style={{
             background: '#ffffff',
-            padding: '24px 16px',
+            padding: '16px',
             minHeight: '200px',
           }}
         >
@@ -539,201 +518,246 @@ export default function PlayMonitor() {
                   fontSize: '14px',
                 }}
               >
-                <motion.div
-                  animate={{
-                    scale: [1, 1.05, 1],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                  }}
-                >
-                  <Search
-                    size={48}
-                    color="#cccccc"
-                    style={{ margin: '0 auto 12px' }}
-                  />
-                </motion.div>
+                <Search
+                  size={48}
+                  color="#cccccc"
+                  style={{ margin: '0 auto 12px' }}
+                />
                 No hay entradas para el sorteo y la fecha elegidos
               </motion.div>
             ) : (
-              /* ---- Data table ---- */
+              /* ---- 3 Category Tables ---- */
               <motion.div
                 key="data"
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                style={{
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                }}
+                className="flex flex-col gap-6"
               >
-                <Table>
-                  <TableHeader>
-                    <TableRow
-                      style={{
-                        backgroundColor: '#f5f5f5',
-                      }}
-                    >
-                      {[
-                        '#',
-                        'Ticket',
-                        'Fecha',
-                        'Usuario',
-                        'Sorteo',
-                        'Jugada',
-                        'Tipo',
-                        'Monto',
-                      ].map((col) => (
-                        <TableHead
-                          key={col}
-                          style={{
-                            fontSize: '12px',
-                            textTransform: 'uppercase',
-                            color: '#555555',
-                            fontWeight: 600,
-                            padding: '12px',
-                          }}
-                        >
-                          {col}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((play, index) => (
-                      <motion.tr
-                        key={play.id}
-                        variants={rowVariants}
-                        style={{
-                          backgroundColor:
-                            index % 2 === 0 ? '#ffffff' : '#f9f9f9',
-                          borderBottom: '1px solid #eeeeee',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f0f0f0';
-                          e.currentTarget.style.transition =
-                            'background-color 0.15s';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            index % 2 === 0 ? '#ffffff' : '#f9f9f9';
-                        }}
-                      >
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {index + 1}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.ticketNumber}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.date} {play.time}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.vendor}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.lottery}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                            fontWeight: 600,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {play.jugada}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                            textTransform: 'capitalize',
-                          }}
-                        >
-                          {play.tipo}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                            textAlign: 'right',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {formatCurrencyLong(play.monto)}
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </TableBody>
-                </Table>
+                {/* Directo Table */}
+                <PlayCategoryTable
+                  category="directo"
+                  label={categoryLabels.directo}
+                  plays={playsByCategory.directo}
+                  total={categoryTotals.directo.total}
+                  count={categoryTotals.directo.count}
+                  rowVariants={rowVariants}
+                />
 
-                {/* Summary footer */}
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    backgroundColor: '#f5f5f5',
-                    borderTop: '1px solid #e0e0e0',
-                    fontSize: '13px',
-                    color: '#555555',
-                    fontWeight: 500,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span>
-                    Total jugadas: <strong>{filtered.length}</strong>
-                  </span>
-                  <span>
-                    Monto total:{" "}
-                    <strong>
-                      {formatCurrencyLong(
-                        filtered.reduce((sum, p) => sum + p.monto, 0)
-                      )}
-                    </strong>
-                  </span>
-                </div>
+                {/* Pale Table */}
+                <PlayCategoryTable
+                  category="pale"
+                  label={categoryLabels.pale}
+                  plays={playsByCategory.pale}
+                  total={categoryTotals.pale.total}
+                  count={categoryTotals.pale.count}
+                  rowVariants={rowVariants}
+                />
+
+                {/* Tripleta Table */}
+                <PlayCategoryTable
+                  category="tripleta"
+                  label={categoryLabels.tripleta}
+                  plays={playsByCategory.tripleta}
+                  total={categoryTotals.tripleta.total}
+                  count={categoryTotals.tripleta.count}
+                  rowVariants={rowVariants}
+                />
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
       </div>
     </Layout>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Individual category table                                          */
+/* ------------------------------------------------------------------ */
+
+interface PlayCategoryTableProps {
+  category: PlayCategory;
+  label: string;
+  plays: MonitoredPlay[];
+  total: number;
+  count: number;
+  rowVariants: { hidden: { opacity: number; y: number }; visible: { opacity: number; y: number; transition: { duration: number } } };
+}
+
+function PlayCategoryTable({ label, plays, total, count, rowVariants }: PlayCategoryTableProps) {
+  if (plays.length === 0) {
+    return (
+      <div
+        style={{
+          border: '1px solid #e0e0e0',
+          borderRadius: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '10px 16px',
+            backgroundColor: '#f5f5f5',
+            borderBottom: '2px solid #dddddd',
+            fontSize: '14px',
+            fontWeight: 700,
+            color: '#333333',
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+          <span
+            style={{
+              marginLeft: '8px',
+              fontSize: '12px',
+              fontWeight: 500,
+              color: '#777777',
+            }}
+          >
+            (0 jugadas)
+          </span>
+        </div>
+        <div
+          style={{
+            padding: '24px',
+            textAlign: 'center',
+            color: '#999999',
+            fontSize: '13px',
+          }}
+        >
+          No hay jugadas tipo {label} para este sorteo
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid #e0e0e0',
+        borderRadius: '4px',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          padding: '10px 16px',
+          backgroundColor: '#f5f5f5',
+          borderBottom: '2px solid #dddddd',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span
+          style={{
+            fontSize: '14px',
+            fontWeight: 700,
+            color: '#333333',
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: '12px', color: '#777777' }}>
+          {count} jugadas — Total:{' '}
+          <strong style={{ color: '#333333' }}>{formatCurrencyLong(total)}</strong>
+        </span>
+      </div>
+
+      {/* Table */}
+      <Table>
+        <TableHeader>
+          <TableRow
+            style={{
+              backgroundColor: '#fafafa',
+            }}
+          >
+            {['JUGADA', 'IMPORTE'].map((col) => (
+              <TableHead
+                key={col}
+                style={{
+                  fontSize: '12px',
+                  textTransform: 'uppercase',
+                  color: '#555555',
+                  fontWeight: 600,
+                  padding: '10px 12px',
+                }}
+              >
+                {col}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {plays.map((play, index) => (
+            <motion.tr
+              key={play.id}
+              variants={rowVariants}
+              style={{
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                borderBottom: '1px solid #eeeeee',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f0f0f0';
+                e.currentTarget.style.transition = 'background-color 0.15s';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+              }}
+            >
+              <TableCell
+                style={{
+                  fontSize: '13px',
+                  color: '#333333',
+                  padding: '10px 12px',
+                  fontWeight: 600,
+                  fontFamily: 'monospace',
+                  letterSpacing: '1px',
+                }}
+              >
+                {play.jugada}
+              </TableCell>
+              <TableCell
+                style={{
+                  fontSize: '13px',
+                  color: '#333333',
+                  padding: '10px 12px',
+                  textAlign: 'right',
+                  fontWeight: 600,
+                }}
+              >
+                {formatCurrencyLong(play.monto)}
+              </TableCell>
+            </motion.tr>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* Footer */}
+      <div
+        style={{
+          padding: '10px 16px',
+          backgroundColor: '#f5f5f5',
+          borderTop: '1px solid #e0e0e0',
+          fontSize: '13px',
+          color: '#555555',
+          fontWeight: 500,
+          display: 'flex',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>
+          Total {label}: <strong>{count}</strong> jugadas
+        </span>
+        <span>
+          <strong>{formatCurrencyLong(total)}</strong>
+        </span>
+      </div>
+    </div>
   );
 }

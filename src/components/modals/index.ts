@@ -10,3 +10,6 @@ export { default as PendingPaymentsModal } from './PendingPaymentsModal';
 export { default as DuplicateTicketModal } from './DuplicateTicketModal';
 export { default as DuplicatePlaysModal } from './DuplicatePlaysModal';
 export { default as PagarModal } from './PagarModal';
+export { default as PrintTicketModal } from './PrintTicketModal';
+export { default as ShareTicketModal } from './ShareTicketModal';
+export { default as EmailReportModal } from './EmailReportModal';
