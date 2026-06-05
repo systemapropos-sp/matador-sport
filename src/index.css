@@ -62,3 +62,27 @@
     background: #a1a1a1;
   }
 }
+
+/* Responsive table grid */
+.responsive-tables {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) 200px;
+}
+
+@media (max-width: 1279px) {
+  .responsive-tables {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .responsive-tables > *:nth-child(5) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .responsive-tables {
+    grid-template-columns: 1fr;
+  }
+  .responsive-tables > *:nth-child(5) {
+    grid-column: auto;
+  }
+}

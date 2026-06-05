@@ -8,16 +8,17 @@ import {
   FileText,
   X,
   Keyboard,
+  Ticket,
+  ChevronDown,
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import LotterySelector from '@/components/LotterySelector';
-import PlayInput from '@/components/PlayInput';
 import GameTable from '@/components/GameTable';
+import ShortcutsPanel from '@/components/ShortcutsPanel';
 import { usePlays, CAPACITY_LIMITS } from '@/hooks/usePlays';
 import { useTicket } from '@/hooks/useTicket';
-import { detectPlayType } from '@/lib/utils';
+import { detectPlayType, formatCurrency } from '@/lib/utils';
 import { regularLotteries } from '@/data/lotteries';
-import { useModalContext } from '@/components/modals';
 
 // ---- Reusable Icon Button ----
 function IconButton({
@@ -38,10 +39,10 @@ function IconButton({
       onClick={onClick}
       className="flex items-center justify-center rounded transition-colors"
       style={{
-        width: '36px',
-        height: '36px',
-        border: active ? '1px solid #5cb85c' : '1px solid #cccccc',
-        borderRadius: '4px',
+        width: '38px',
+        height: '38px',
+        border: active ? '2px solid #5cb85c' : '1px solid #cccccc',
+        borderRadius: '6px',
         backgroundColor: active ? '#e8f5e9' : '#ffffff',
         color: active ? '#5cb85c' : '#555555',
       }}
@@ -55,27 +56,23 @@ function IconButton({
       }}
       title={title}
     >
-      <Icon size={16} />
+      <Icon size={17} />
     </motion.button>
   );
 }
 
 // ---- PLAYS Button ----
 function PlaysButton({ onClick }: { onClick?: () => void }) {
-  const { openModal } = useModalContext();
   return (
     <motion.button
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
-      onClick={() => {
-        openModal('duplicatePlays');
-        onClick?.();
-      }}
-      className="flex items-center gap-2 rounded transition-colors"
+      onClick={onClick}
+      className="flex items-center gap-2 rounded transition-colors font-semibold"
       style={{
-        padding: '8px 16px',
+        padding: '9px 18px',
         border: '1px solid #cccccc',
-        borderRadius: '4px',
+        borderRadius: '6px',
         backgroundColor: '#ffffff',
         fontSize: '13px',
         color: '#555555',
@@ -206,23 +203,27 @@ function CapacityPanel({
 
   return (
     <div
-      className="flex flex-col rounded overflow-hidden"
-      style={{ border: '1px solid #cccccc', backgroundColor: '#ffffff' }}
+      className="flex flex-col rounded-xl overflow-hidden h-full"
+      style={{ border: '2px solid #bbb', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
     >
       {/* Header */}
       <div
         className="text-center text-white font-bold uppercase"
         style={{
-          background: 'linear-gradient(to bottom, #66BB6A, #43A047)',
-          padding: '8px',
-          fontSize: '12px',
+          background: 'linear-gradient(to bottom, #9CCC65, #689F38)',
+          padding: '12px',
+          fontSize: '14px',
+          fontWeight: 700,
+          letterSpacing: '1px',
+          textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          borderBottom: '2px solid #558B2F',
         }}
       >
         CAPACIDAD
       </div>
 
       {/* Capacity items */}
-      <div className="flex flex-col p-3 gap-3" style={{ flex: 1, justifyContent: 'center' }}>
+      <div className="flex flex-col p-4 gap-4" style={{ flex: 1, justifyContent: 'center', backgroundColor: '#ffffff' }}>
         {items.map(({ label, type }) => {
           const used = capacityUsed[type] || 0;
           const total = CAPACITY_LIMITS[type] || 0;
@@ -233,15 +234,15 @@ function CapacityPanel({
 
           return (
             <div key={type}>
-              <div className="flex items-center justify-between mb-1">
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#444444' }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#444444', textTransform: 'uppercase' }}>
                   {label}
                 </span>
                 <span
                   style={{
-                    fontSize: '12px',
+                    fontSize: '13px',
                     fontWeight: 700,
-                    color: isFull ? '#d9534f' : isLow ? '#f0ad4e' : '#43A047',
+                    color: isFull ? '#d9534f' : isLow ? '#f0ad4e' : '#689F38',
                   }}
                 >
                   {used} / {total}
@@ -250,25 +251,25 @@ function CapacityPanel({
               {/* Progress bar */}
               <div
                 className="w-full rounded-full overflow-hidden"
-                style={{ height: '8px', backgroundColor: '#e0e0e0' }}
+                style={{ height: '10px', backgroundColor: '#e0e0e0' }}
               >
                 <motion.div
                   className="h-full rounded-full"
                   style={{
-                    backgroundColor: isFull ? '#d9534f' : isLow ? '#f0ad4e' : '#43A047',
+                    backgroundColor: isFull ? '#d9534f' : isLow ? '#f0ad4e' : '#689F38',
                   }}
                   initial={{ width: 0 }}
                   animate={{ width: `${pct}%` }}
                   transition={{ duration: 0.3 }}
                 />
               </div>
-              {remaining <= 0 && (
-                <div style={{ fontSize: '10px', color: '#d9534f', marginTop: '2px' }}>
+              {isFull && (
+                <div style={{ fontSize: '11px', color: '#d9534f', marginTop: '4px', fontWeight: 600 }}>
                   COMPLETO
                 </div>
               )}
-              {remaining > 0 && remaining <= 5 && (
-                <div style={{ fontSize: '10px', color: '#f0ad4e', marginTop: '2px' }}>
+              {isLow && (
+                <div style={{ fontSize: '11px', color: '#f0ad4e', marginTop: '4px', fontWeight: 600 }}>
                   Quedan {remaining}
                 </div>
               )}
@@ -279,15 +280,296 @@ function CapacityPanel({
 
       {/* Footer */}
       <div
-        className="text-center font-semibold"
+        className="text-center font-bold uppercase"
         style={{
           backgroundColor: '#3C3F54',
-          padding: '8px',
-          fontSize: '11px',
+          padding: '12px',
+          fontSize: '13px',
           color: '#ffffff',
+          letterSpacing: '0.5px',
         }}
       >
         LIMITES DE VENTA
+      </div>
+    </div>
+  );
+}
+
+// ---- Play Input Section ----
+function PlayInputSection({
+  jugada,
+  onJugadaChange,
+  monto,
+  onMontoChange,
+  selectedLotteryName,
+  detectedType,
+  onAddPlay,
+  onCreateTicket,
+  totalPlays,
+  totalAmount,
+  recentTickets,
+}: {
+  jugada: string;
+  onJugadaChange: (v: string) => void;
+  monto: string;
+  onMontoChange: (v: string) => void;
+  selectedLotteryName: string;
+  detectedType: string;
+  onAddPlay: () => boolean;
+  onCreateTicket: () => void;
+  totalPlays: number;
+  totalAmount: number;
+  recentTickets: Array<{ ticketNumber: string; totalAmount: number; createdAt: Date }>;
+}) {
+  const jugadaRef = useRef<HTMLInputElement>(null);
+  const montoRef = useRef<HTMLInputElement>(null);
+  const [showRecent, setShowRecent] = useState(false);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (e.currentTarget === jugadaRef.current) {
+        montoRef.current?.focus();
+      } else if (e.currentTarget === montoRef.current) {
+        onAddPlay();
+        jugadaRef.current?.focus();
+      }
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.currentTarget === jugadaRef.current) {
+        montoRef.current?.focus();
+      } else {
+        jugadaRef.current?.focus();
+      }
+    }
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      onCreateTicket();
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'directo': return '#689F38';
+      case 'pale': return '#558B2F';
+      case 'tripleta': return '#33691E';
+      case 'cash3': return '#43A047';
+      case 'play4': return '#2E7D32';
+      case 'pick5': return '#1B5E20';
+      default: return '#888888';
+    }
+  };
+
+  return (
+    <div
+      className="flex flex-col gap-3"
+      style={{
+        backgroundColor: '#ffffff',
+        borderBottom: '2px solid #e0e0e0',
+        padding: '16px 20px',
+      }}
+    >
+      {/* Input row */}
+      <div className="flex items-end gap-3 flex-wrap">
+        {/* JUGADA */}
+        <div className="flex flex-col gap-1 flex-1" style={{ minWidth: '180px' }}>
+          <label
+            className="uppercase font-bold"
+            style={{ fontSize: '11px', color: '#555', letterSpacing: '0.5px' }}
+          >
+            JUGADA
+          </label>
+          <div className="relative">
+            <input
+              ref={jugadaRef}
+              type="text"
+              value={jugada}
+              onChange={(e) => onJugadaChange(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={handleKeyDown}
+              placeholder="--"
+              className="w-full text-center font-bold rounded border-2 transition-colors"
+              style={{
+                padding: '12px 16px',
+                fontSize: '24px',
+                color: '#333',
+                borderColor: detectedType ? getTypeColor(detectedType) : '#cccccc',
+                backgroundColor: '#fafafa',
+                letterSpacing: '2px',
+              }}
+              autoFocus
+            />
+            {detectedType && (
+              <span
+                className="absolute right-3 top-1/2 -translate-y-1/2 uppercase font-bold"
+                style={{
+                  fontSize: '11px',
+                  color: getTypeColor(detectedType),
+                  backgroundColor: '#E8F5E9',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                }}
+              >
+                {detectedType}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* N/A - Selected Lottery */}
+        <div className="flex flex-col gap-1" style={{ minWidth: '140px' }}>
+          <label
+            className="uppercase font-bold"
+            style={{ fontSize: '11px', color: '#555', letterSpacing: '0.5px' }}
+          >
+            N/A
+          </label>
+          <div
+            className="flex items-center justify-center rounded border font-semibold"
+            style={{
+              padding: '14px 16px',
+              fontSize: '13px',
+              color: selectedLotteryName ? '#333' : '#999',
+              borderColor: '#cccccc',
+              backgroundColor: '#f5f5f5',
+              minHeight: '55px',
+            }}
+          >
+            {selectedLotteryName || 'Seleccione'}
+          </div>
+        </div>
+
+        {/* MONTO */}
+        <div className="flex flex-col gap-1" style={{ minWidth: '120px' }}>
+          <label
+            className="uppercase font-bold"
+            style={{ fontSize: '11px', color: '#555', letterSpacing: '0.5px' }}
+          >
+            MONTO
+          </label>
+          <div className="relative">
+            <span
+              className="absolute left-3 top-1/2 -translate-y-1/2 font-bold"
+              style={{ fontSize: '18px', color: '#999' }}
+            >
+              $
+            </span>
+            <input
+              ref={montoRef}
+              type="number"
+              value={monto}
+              onChange={(e) => onMontoChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="0.00"
+              className="w-full text-right font-bold rounded border-2 transition-colors"
+              style={{
+                padding: '12px 12px 12px 28px',
+                fontSize: '20px',
+                color: '#333',
+                borderColor: monto ? '#5cb85c' : '#cccccc',
+                backgroundColor: '#fafafa',
+              }}
+              min="0"
+              step="0.01"
+            />
+          </div>
+        </div>
+
+        {/* Recent tickets dropdown */}
+        <div className="relative">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowRecent(!showRecent)}
+            className="flex items-center gap-1 rounded border transition-colors"
+            style={{
+              padding: '14px 16px',
+              fontSize: '13px',
+              color: '#555',
+              borderColor: '#cccccc',
+              backgroundColor: '#ffffff',
+              minHeight: '55px',
+            }}
+          >
+            <Ticket size={16} />
+            <span>Recientes</span>
+            <motion.span
+              animate={{ rotate: showRecent ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown size={14} />
+            </motion.span>
+          </motion.button>
+          <AnimatePresence>
+            {showRecent && (
+              <motion.div
+                initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full left-0 mt-1 bg-white rounded shadow-lg overflow-hidden"
+                style={{ zIndex: 50, border: '1px solid #e0e0e0', minWidth: '280px' }}
+              >
+                {recentTickets.length === 0 ? (
+                  <div className="px-4 py-3 text-center" style={{ fontSize: '13px', color: '#999' }}>
+                    No hay tickets recientes
+                  </div>
+                ) : (
+                  recentTickets.slice(0, 5).map((t) => (
+                    <div
+                      key={t.ticketNumber}
+                      className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-gray-50"
+                      style={{ borderBottom: '1px solid #f0f0f0' }}
+                    >
+                      <div className="flex flex-col">
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#333' }}>
+                          {t.ticketNumber}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#888' }}>
+                          {t.createdAt.toLocaleDateString()}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#689F38' }}>
+                        {formatCurrency(t.totalAmount)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Counters row */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div
+          className="flex items-center gap-2 rounded px-4 py-2"
+          style={{ backgroundColor: '#E8F5E9', border: '1px solid #C5E1A5' }}
+        >
+          <span style={{ fontSize: '12px', color: '#555', fontWeight: 600 }}>Jugadas:</span>
+          <motion.span
+            key={totalPlays}
+            initial={{ scale: 1.3, color: '#689F38' }}
+            animate={{ scale: 1, color: '#333' }}
+            style={{ fontSize: '18px', fontWeight: 700 }}
+          >
+            {totalPlays}
+          </motion.span>
+        </div>
+        <div
+          className="flex items-center gap-2 rounded px-4 py-2"
+          style={{ backgroundColor: '#E3F2FD', border: '1px solid #90CAF9' }}
+        >
+          <span style={{ fontSize: '12px', color: '#555', fontWeight: 600 }}>Total:</span>
+          <motion.span
+            key={totalAmount}
+            initial={{ scale: 1.3, color: '#1976D2' }}
+            animate={{ scale: 1, color: '#333' }}
+            style={{ fontSize: '18px', fontWeight: 700 }}
+          >
+            {formatCurrency(totalAmount)}
+          </motion.span>
+        </div>
       </div>
     </div>
   );
@@ -362,14 +644,12 @@ export default function Dashboard() {
     if (isNaN(amount) || amount <= 0) return false;
     if (selectedLotteries.length === 0) return false;
 
-    // Check capacity for this play type
     const type = detectPlayType(jugada);
     if (isAtCapacity(type)) {
       showToast(`Capacidad completa para ${type}`);
       return false;
     }
 
-    // Add play for each selected lottery
     let added = false;
     selectedLotteries.forEach((lotId) => {
       const lottery = regularLotteries.find((l) => l.id === lotId);
@@ -429,14 +709,18 @@ export default function Dashboard() {
   // Set quick amount
   const handleQuickAmount = useCallback((amount: number) => {
     setMonto(amount.toString());
-    // Focus monto input after setting
     setTimeout(() => {
       const montoInput = document.querySelector('input[type="number"]') as HTMLInputElement;
       montoInput?.focus();
     }, 50);
   }, []);
 
-  // Keyboard shortcuts: Esc clears input
+  // Handle toast from side menu
+  const handleMenuToast = useCallback((message: string) => {
+    showToast(message);
+  }, [showToast]);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -475,7 +759,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <Layout>
+    <Layout onMenuToast={handleMenuToast}>
       <div
         className="flex flex-col"
         style={{ backgroundColor: '#e8e8e8', minHeight: 'calc(100dvh - 50px)' }}
@@ -487,9 +771,9 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: -30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -30 }}
-              className="fixed top-16 left-1/2 -translate-x-1/2 z-[80] px-6 py-3 rounded-md shadow-lg text-white font-medium"
+              className="fixed top-16 left-1/2 -translate-x-1/2 z-[80] px-6 py-3 rounded-md shadow-lg text-white font-bold"
               style={{
-                backgroundColor: toast.includes('creado') ? '#5cb85c' : '#d9534f',
+                backgroundColor: toast.includes('creado') || toast.includes('copiad') || toast.includes('pago') ? '#5cb85c' : '#d9534f',
                 fontSize: '14px',
               }}
             >
@@ -498,7 +782,7 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Section 2: Lottery Selector Bar */}
+        {/* Section 1: Lottery Selector Bar */}
         <LotterySelector
           selectedLotteries={selectedLotteries}
           onToggleLottery={handleToggleLottery}
@@ -506,7 +790,7 @@ export default function Dashboard() {
           onToggleMultiSelect={() => setMultiSelect((v) => !v)}
         />
 
-        {/* Section 3: Action Button Bar */}
+        {/* Section 2: Action Button Bar */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -514,7 +798,7 @@ export default function Dashboard() {
           className="flex items-center gap-2 relative"
           style={{
             backgroundColor: '#f9f9f9',
-            borderBottom: '1px solid #e0e0e0',
+            borderBottom: '2px solid #e0e0e0',
             padding: '10px 16px',
           }}
         >
@@ -524,13 +808,13 @@ export default function Dashboard() {
             whileTap={{ scale: 0.98 }}
             onClick={handleCreateTicket}
             disabled={totalPlays === 0}
-            className="font-semibold uppercase transition-all"
+            className="font-bold uppercase transition-all"
             style={{
               backgroundColor: '#5cb85c',
               color: '#ffffff',
-              padding: '10px 28px',
+              padding: '12px 32px',
               borderRadius: '6px',
-              fontSize: '14px',
+              fontSize: '15px',
               letterSpacing: '0.5px',
               opacity: totalPlays === 0 ? 0.5 : 1,
               cursor: totalPlays === 0 ? 'not-allowed' : 'pointer',
@@ -564,8 +848,8 @@ export default function Dashboard() {
           <PlaysButton />
         </motion.div>
 
-        {/* Section 4 & 5: Play Input + Counters */}
-        <PlayInput
+        {/* Section 3: Play Input + Counters */}
+        <PlayInputSection
           jugada={jugada}
           onJugadaChange={setJugada}
           monto={monto}
@@ -577,15 +861,13 @@ export default function Dashboard() {
           recentTickets={recentTickets}
           totalPlays={totalPlays}
           totalAmount={totalAmount}
-          capacityRemaining={capacityRemaining}
-          isAtCapacity={isAtCapacity}
         />
 
-        {/* Section 6: 4-Column Game Tables Grid + Capacity Panel */}
+        {/* Section 4: 4-Column Game Tables Grid + Capacity Panel */}
         <div
-          className="grid gap-3"
+          className="grid gap-3 responsive-tables"
           style={{
-            gridTemplateColumns: '1fr 1fr 1fr 1fr 180px',
+            gridTemplateColumns: 'repeat(4, 1fr) 200px',
             padding: '12px',
             flex: 1,
             minHeight: 0,
@@ -602,8 +884,7 @@ export default function Dashboard() {
               title="DIRECTO"
               plays={directoPlays}
               onDeletePlay={removePlay}
-              emptyRows={4}
-              compact
+              emptyRows={6}
             />
           </motion.div>
 
@@ -618,8 +899,7 @@ export default function Dashboard() {
               title="PALE & TRIPLETA"
               plays={paleTripletaPlays}
               onDeletePlay={removePlay}
-              emptyRows={4}
-              compact
+              emptyRows={6}
             />
           </motion.div>
 
@@ -634,8 +914,7 @@ export default function Dashboard() {
               title="CASH 3"
               plays={cash3Plays}
               onDeletePlay={removePlay}
-              emptyRows={4}
-              compact
+              emptyRows={6}
             />
           </motion.div>
 
@@ -650,8 +929,7 @@ export default function Dashboard() {
               title="PLAY 4 & PICK 5"
               plays={play4Pick5Plays}
               onDeletePlay={removePlay}
-              emptyRows={4}
-              compact
+              emptyRows={6}
             />
           </motion.div>
 
@@ -668,6 +946,9 @@ export default function Dashboard() {
             />
           </motion.div>
         </div>
+
+        {/* Shortcuts Panel */}
+        <ShortcutsPanel />
       </div>
     </Layout>
   );

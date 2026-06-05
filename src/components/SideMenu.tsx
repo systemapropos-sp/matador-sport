@@ -24,15 +24,17 @@ import type { ModalType } from './modals/ModalContext';
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  onToast?: (message: string) => void;
 }
 
 interface MenuItemConfig {
   label: string;
   icon: React.ComponentType<{ size?: number }>;
-  action: 'modal' | 'navigate' | 'action';
+  action: 'modal' | 'navigate' | 'action' | 'toast';
   modalType?: ModalType;
   route?: string;
-  handler?: () => void;
+  toastMessage?: string;
+  isLogout?: boolean;
 }
 
 const menuItems: MenuItemConfig[] = [
@@ -43,14 +45,14 @@ const menuItems: MenuItemConfig[] = [
   { label: 'Duplicar', icon: Copy, action: 'modal', modalType: 'duplicateTicket' },
   { label: 'Duplicar jugadas', icon: Layers, action: 'modal', modalType: 'duplicatePlays' },
   { label: 'Jugadas', icon: Gamepad2, action: 'navigate', route: '/betting-pool/play-monitor' },
-  { label: 'Pagar', icon: Banknote, action: 'modal', modalType: 'pendingPayments' },
-  { label: 'Ver ventas', icon: Eye, action: 'navigate', route: '/betting-pool/historical-sale' },
+  { label: 'Pagar', icon: Banknote, action: 'modal', modalType: 'pagar' },
+  { label: 'Ver ventas', icon: Eye, action: 'toast', toastMessage: 'Ver ventas' },
   { label: 'Horarios', icon: CalendarDays, action: 'modal', modalType: 'schedule' },
-  { label: 'Ayuda', icon: HelpCircle, action: 'action' },
+  { label: 'Ayuda', icon: HelpCircle, action: 'toast', toastMessage: 'Ayuda' },
   { label: 'Configuracion', icon: Settings, action: 'modal', modalType: 'config' },
   { label: 'Autorizar ponchado', icon: ShieldCheck, action: 'modal', modalType: 'authorize' },
   { label: 'Generador de jugadas aleatorias', icon: Shuffle, action: 'modal', modalType: 'randomGenerator' },
-  { label: 'Cerrar sesion', icon: LogOut, action: 'action' },
+  { label: 'Cerrar sesion', icon: LogOut, action: 'action', isLogout: true },
 ];
 
 const overlayVariants = {
@@ -65,26 +67,28 @@ const menuVariants = {
   exit: { x: -280 },
 };
 
-export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
+export default function SideMenu({ isOpen, onClose, onToast }: SideMenuProps) {
   const navigate = useNavigate();
   const { openModal } = useModalContext();
 
   const handleItemClick = (item: MenuItemConfig) => {
     onClose();
 
-    // Small delay to let the menu close animation start
     setTimeout(() => {
       if (item.action === 'modal' && item.modalType) {
         openModal(item.modalType);
       } else if (item.action === 'navigate' && item.route) {
         navigate(item.route);
+      } else if (item.action === 'toast' && item.toastMessage && onToast) {
+        onToast(item.toastMessage);
       } else if (item.action === 'action') {
         if (item.label === 'Cerrar sesion') {
+          // Clear auth and go to login
+          localStorage.removeItem('matador_auth');
           navigate('/sessions/new');
         } else if (item.label === 'Imprimir reporte') {
           window.print();
         }
-        // Ayuda - no action for now
       }
     }, 100);
   };
@@ -136,7 +140,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
             <nav className="pb-6">
               {menuItems.map((item, index) => {
                 const Icon = item.icon;
-                const isLogout = item.label === 'Cerrar sesion';
+                const isLogout = item.isLogout;
                 return (
                   <div key={item.label}>
                     {index > 0 && (

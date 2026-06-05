@@ -7,6 +7,7 @@ import RandomGeneratorModal from './RandomGeneratorModal';
 import PendingPaymentsModal from './PendingPaymentsModal';
 import DuplicateTicketModal from './DuplicateTicketModal';
 import DuplicatePlaysModal from './DuplicatePlaysModal';
+import PagarModal from './PagarModal';
 
 export default function ModalManager() {
   const { modalState, closeModal } = useModalContext();
@@ -28,6 +29,8 @@ export default function ModalManager() {
       return <DuplicateTicketModal open={true} onClose={closeModal} />;
     case 'duplicatePlays':
       return <DuplicatePlaysModal open={true} onClose={closeModal} />;
+    case 'pagar':
+      return <PagarModal open={true} onClose={closeModal} />;
     default:
       return null;
   }
