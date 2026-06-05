@@ -33,7 +33,6 @@ function searchTicket(ticketNumber: string): Ticket | null {
       createdAt: new Date(Date.now() - 86400000).toISOString() as unknown as Date,
       vendorId: 'mr01',
       vendorName: 'mr01',
-      prize: 0,
     };
   }
   return null;

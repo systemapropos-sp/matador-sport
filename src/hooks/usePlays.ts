@@ -8,6 +8,16 @@ function generatePlayId(): string {
   return `play-${++playIdCounter}-${Date.now()}`;
 }
 
+// Capacity limits per play type
+export const CAPACITY_LIMITS: Record<string, number> = {
+  directo: 200,
+  pale: 50,
+  tripleta: 10,
+  cash3: 100,
+  play4: 100,
+  pick5: 100,
+};
+
 export interface UsePlaysReturn {
   plays: Play[];
   addPlay: (numbers: string, amount: number, lotteryId: string, lotteryName: string) => boolean;
@@ -16,6 +26,9 @@ export interface UsePlaysReturn {
   totalPlays: number;
   totalAmount: number;
   playsByType: Record<PlayType, Play[]>;
+  capacityUsed: Record<string, number>;
+  capacityRemaining: Record<string, number>;
+  isAtCapacity: (type: string) => boolean;
 }
 
 export function usePlays(): UsePlaysReturn {
@@ -27,6 +40,11 @@ export function usePlays(): UsePlaysReturn {
       if (!cleanNumbers || amount <= 0) return false;
 
       const type = detectPlayType(cleanNumbers);
+
+      // Check capacity before adding
+      const currentCount = plays.filter((p) => p.type === type).length;
+      const limit = CAPACITY_LIMITS[type] || 999;
+      if (currentCount >= limit) return false;
 
       const newPlay: Play = {
         id: generatePlayId(),
@@ -40,7 +58,7 @@ export function usePlays(): UsePlaysReturn {
       setPlays((prev) => [...prev, newPlay]);
       return true;
     },
-    []
+    [plays]
   );
 
   const removePlay = useCallback((id: string) => {
@@ -71,6 +89,30 @@ export function usePlays(): UsePlaysReturn {
     return grouped;
   }, [plays]);
 
+  // Capacity tracking
+  const capacityUsed = useMemo(() => {
+    const used: Record<string, number> = {};
+    Object.keys(CAPACITY_LIMITS).forEach((type) => {
+      used[type] = plays.filter((p) => p.type === type).length;
+    });
+    return used;
+  }, [plays]);
+
+  const capacityRemaining = useMemo(() => {
+    const remaining: Record<string, number> = {};
+    Object.keys(CAPACITY_LIMITS).forEach((type) => {
+      remaining[type] = (CAPACITY_LIMITS[type] || 0) - (capacityUsed[type] || 0);
+    });
+    return remaining;
+  }, [capacityUsed]);
+
+  const isAtCapacity = useCallback(
+    (type: string): boolean => {
+      return (capacityRemaining[type] || 0) <= 0;
+    },
+    [capacityRemaining]
+  );
+
   return {
     plays,
     addPlay,
@@ -79,6 +121,9 @@ export function usePlays(): UsePlaysReturn {
     totalPlays,
     totalAmount,
     playsByType,
+    capacityUsed,
+    capacityRemaining,
+    isAtCapacity,
   };
 }
 

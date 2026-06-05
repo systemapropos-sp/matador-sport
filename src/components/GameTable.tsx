@@ -8,15 +8,16 @@ interface GameTableProps {
   plays: Play[];
   onDeletePlay: (id: string) => void;
   emptyRows?: number;
+  compact?: boolean;
 }
 
 const rowVariants = {
-  initial: { opacity: 0, y: -20, backgroundColor: '#d4edda' },
+  initial: { opacity: 0, y: -10, backgroundColor: '#d4edda' },
   animate: { opacity: 1, y: 0, backgroundColor: 'transparent' },
-  exit: { opacity: 0, x: 50, transition: { duration: 0.2 } },
+  exit: { opacity: 0, x: 30, transition: { duration: 0.15 } },
 };
 
-export default function GameTable({ title, plays, onDeletePlay, emptyRows = 5 }: GameTableProps) {
+export default function GameTable({ title, plays, onDeletePlay, emptyRows = 4, compact = true }: GameTableProps) {
   const total = plays.reduce((sum, p) => sum + p.amount, 0);
 
   const formatNumber = (play: Play): string => {
@@ -33,14 +34,14 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 5 }:
   const displayRows = Math.max(emptyRows, plays.length);
 
   return (
-    <div className="flex flex-col rounded overflow-hidden" style={{ border: '1px solid #dddddd' }}>
-      {/* Header */}
+    <div className="flex flex-col rounded overflow-hidden h-full" style={{ border: '1px solid #cccccc' }}>
+      {/* Header - green gradient */}
       <div
-        className="text-center text-white font-semibold uppercase"
+        className="text-center text-white font-bold uppercase whitespace-nowrap"
         style={{
-          background: 'linear-gradient(to bottom, #8BC34A, #4CAF50)',
-          padding: '10px 16px',
-          fontSize: '14px',
+          background: 'linear-gradient(to bottom, #9CCC65, #7CB342)',
+          padding: compact ? '8px 8px' : '10px 16px',
+          fontSize: compact ? '12px' : '14px',
         }}
       >
         {title}
@@ -50,19 +51,19 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 5 }:
       <div
         className="grid items-center"
         style={{
-          gridTemplateColumns: '1fr 1.2fr 1fr 36px',
-          backgroundColor: '#e0e0e0',
-          padding: '8px 12px',
+          gridTemplateColumns: '1fr 1.2fr 0.8fr 28px',
+          backgroundColor: '#e8e8e8',
+          padding: compact ? '6px 8px' : '8px 12px',
         }}
       >
-        <span className="uppercase font-semibold" style={{ fontSize: '11px', color: '#555555' }}>LOT</span>
-        <span className="uppercase font-semibold" style={{ fontSize: '11px', color: '#555555' }}>NUM</span>
-        <span className="uppercase font-semibold text-right" style={{ fontSize: '11px', color: '#555555' }}>$</span>
-        <span className="uppercase font-semibold text-center" style={{ fontSize: '11px', color: '#555555' }}></span>
+        <span className="uppercase font-bold" style={{ fontSize: '10px', color: '#555555' }}>LOT</span>
+        <span className="uppercase font-bold" style={{ fontSize: '10px', color: '#555555' }}>NUM</span>
+        <span className="uppercase font-bold text-right" style={{ fontSize: '10px', color: '#555555' }}>$</span>
+        <span />
       </div>
 
       {/* Body */}
-      <div style={{ backgroundColor: '#f0f0f0', minHeight: '150px' }}>
+      <div style={{ backgroundColor: '#f0f0f0', flex: 1 }}>
         <AnimatePresence mode="popLayout">
           {plays.map((play, index) => (
             <motion.div
@@ -71,31 +72,31 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 5 }:
               initial="initial"
               animate="animate"
               exit="exit"
-              transition={{ duration: 0.25, delay: 0 }}
+              transition={{ duration: 0.2, delay: 0 }}
               className="grid items-center group cursor-pointer"
               style={{
-                gridTemplateColumns: '1fr 1.2fr 1fr 36px',
-                height: '36px',
+                gridTemplateColumns: '1fr 1.2fr 0.8fr 28px',
+                height: compact ? '30px' : '36px',
                 borderBottom: '1px solid #e0e0e0',
                 backgroundColor: index % 2 === 1 ? '#e8e8e8' : '#f0f0f0',
-                padding: '0 12px',
+                padding: compact ? '0 8px' : '0 12px',
               }}
               layout
             >
-              <span style={{ fontSize: '12px', color: '#333333' }}>{play.lotteryName}</span>
-              <span className="font-medium" style={{ fontSize: '13px', color: '#333333' }}>
+              <span className="truncate" style={{ fontSize: '11px', color: '#333333' }}>{play.lotteryName}</span>
+              <span className="font-medium" style={{ fontSize: '12px', color: '#333333' }}>
                 {formatNumber(play)}
               </span>
-              <span className="text-right" style={{ fontSize: '13px', color: '#333333' }}>
+              <span className="text-right" style={{ fontSize: '12px', color: '#333333' }}>
                 {formatCurrency(play.amount)}
               </span>
               <button
                 onClick={() => onDeletePlay(play.id)}
-                className="flex items-center justify-center rounded transition-colors opacity-60 group-hover:opacity-100"
-                style={{ color: '#d9534f', width: '28px', height: '28px' }}
+                className="flex items-center justify-center rounded transition-colors opacity-0 group-hover:opacity-100"
+                style={{ color: '#d9534f', width: '22px', height: '22px' }}
                 title="Eliminar jugada"
               >
-                <Trash2 size={14} />
+                <Trash2 size={12} />
               </button>
             </motion.div>
           ))}
@@ -108,11 +109,11 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 5 }:
               key={`empty-${i}`}
               className="grid items-center"
               style={{
-                gridTemplateColumns: '1fr 1.2fr 1fr 36px',
-                height: '36px',
+                gridTemplateColumns: '1fr 1.2fr 0.8fr 28px',
+                height: compact ? '30px' : '36px',
                 borderBottom: '1px dashed #dddddd',
                 backgroundColor: (plays.length + i) % 2 === 1 ? '#e8e8e8' : '#f0f0f0',
-                padding: '0 12px',
+                padding: compact ? '0 8px' : '0 12px',
               }}
             >
               <span>&nbsp;</span>
@@ -128,8 +129,8 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 5 }:
         className="text-right text-white font-semibold"
         style={{
           backgroundColor: '#3C3F54',
-          padding: '10px 16px',
-          fontSize: '13px',
+          padding: compact ? '8px 10px' : '10px 16px',
+          fontSize: '12px',
         }}
       >
         TOTAL: {formatCurrency(total)}

@@ -67,14 +67,14 @@ const labelStyle: React.CSSProperties = {
 
 export default function RandomGeneratorModal({ open, onClose }: RandomGeneratorModalProps) {
   const [lotteryId, setLotteryId] = useState(lotteries[0]?.id || '');
-  const [playType, setPlayType] = useState<PlayType>('');
+  const [playType, setPlayType] = useState<PlayType>('directo');
   const [monto, setMonto] = useState('');
   const [cantidad, setCantidad] = useState('');
   const [error, setError] = useState('');
 
   const handleClose = () => {
     setLotteryId(lotteries[0]?.id || '');
-    setPlayType('');
+    setPlayType('directo');
     setMonto('');
     setCantidad('');
     setError('');

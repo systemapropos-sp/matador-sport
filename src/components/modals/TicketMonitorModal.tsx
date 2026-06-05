@@ -7,6 +7,9 @@ import ModalWrapper from './ModalWrapper';
 import { formatCurrencyLong } from '@/lib/utils';
 import type { Ticket, TicketStatus } from '@/types';
 
+// Extended ticket type for mock data with extra fields
+type ExtendedTicket = Ticket & { prize?: number; cancelledAt?: string };
+
 interface TicketMonitorModalProps {
   open: boolean;
   onClose: () => void;
@@ -29,16 +32,16 @@ const statusStyles: Record<TicketStatus, { bg: string; color: string; label: str
   cancelled: { bg: '#e2e3e5', color: '#383d41', label: 'Cancelado' },
 };
 
-function loadTickets(): Ticket[] {
+function loadTickets(): ExtendedTicket[] {
   try {
     const stored = localStorage.getItem('matador_tickets');
-    if (stored) return JSON.parse(stored) as Ticket[];
+    if (stored) return JSON.parse(stored) as ExtendedTicket[];
   } catch { /* ignore */ }
   // Generate mock tickets if none stored
   return generateMockTickets();
 }
 
-function generateMockTickets(): Ticket[] {
+function generateMockTickets(): ExtendedTicket[] {
   const statuses: TicketStatus[] = ['pending', 'winner', 'loser', 'cancelled'];
   const vendors = ['mr01', 'jd02', 'ak03', 'ls04', 'rp05'];
   const tickets: Ticket[] = [];
@@ -57,9 +60,9 @@ function generateMockTickets(): Ticket[] {
       createdAt: date.toISOString() as unknown as Date,
       vendorId: vendors[Math.floor(Math.random() * vendors.length)],
       vendorName: vendors[Math.floor(Math.random() * vendors.length)],
-      prize,
+      prize: prize as unknown as undefined,
       cancelledAt: status === 'cancelled' ? new Date(date.getTime() + 3600000).toISOString() : undefined,
-    });
+    } as ExtendedTicket);
   }
   return tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
@@ -67,7 +70,7 @@ function generateMockTickets(): Ticket[] {
 export default function TicketMonitorModal({ open, onClose }: TicketMonitorModalProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
-  const [tickets, setTickets] = useState<Ticket[]>(() => loadTickets());
+  const [tickets, setTickets] = useState<ExtendedTicket[]>(() => loadTickets());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
@@ -115,7 +118,7 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
     setTickets((prev) =>
       prev.map((t) =>
         t.id === ticketId
-          ? { ...t, status: 'cancelled' as TicketStatus, cancelledAt: new Date().toISOString() }
+          ? { ...(t as ExtendedTicket), status: 'cancelled' as TicketStatus, cancelledAt: new Date().toISOString() }
           : t
       )
     );

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Printer, FileText } from 'lucide-react';
+import { Trash2, Printer, ChevronDown } from 'lucide-react';
 import type { Ticket } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -11,11 +11,13 @@ interface PlayInputProps {
   onMontoChange: (v: string) => void;
   selectedLotteryName: string;
   detectedType: string;
-  onAddPlay: () => void;
+  onAddPlay: () => boolean;
   onCreateTicket: () => void;
   recentTickets: Ticket[];
   totalPlays: number;
   totalAmount: number;
+  capacityRemaining?: Record<string, number>;
+  isAtCapacity?: (type: string) => boolean;
 }
 
 export default function PlayInput({
@@ -30,15 +32,26 @@ export default function PlayInput({
   recentTickets,
   totalPlays,
   totalAmount,
+  capacityRemaining,
+  isAtCapacity,
 }: PlayInputProps) {
   const jugadaRef = useRef<HTMLInputElement>(null);
   const montoRef = useRef<HTMLInputElement>(null);
   const [jugadaFlash, setJugadaFlash] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Auto-focus JUGADA on mount
   useEffect(() => {
     jugadaRef.current?.focus();
   }, []);
+
+  // Get display text for N/A field
+  const getDisplayText = (): string => {
+    if (detectedType && detectedType !== 'directo') {
+      return detectedType.toUpperCase();
+    }
+    return selectedLotteryName || '-';
+  };
 
   const handleJugadaKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Tab' && !e.shiftKey) {
@@ -54,12 +67,14 @@ export default function PlayInput({
   const handleMontoKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Check capacity before adding
+      if (isAtCapacity && detectedType && isAtCapacity(detectedType)) {
+        return;
+      }
       const added = onAddPlay();
       if (added) {
-        // Flash animation
         setJugadaFlash(true);
         setTimeout(() => setJugadaFlash(false), 300);
-        // Refocus jugada
         setTimeout(() => jugadaRef.current?.focus(), 50);
       }
     }
@@ -81,14 +96,24 @@ export default function PlayInput({
     return () => window.removeEventListener('keydown', handler);
   }, [onCreateTicket]);
 
+  // Capacity warning color
+  const getCapacityColor = (): string => {
+    if (!detectedType || !capacityRemaining) return '#555555';
+    const remaining = capacityRemaining[detectedType];
+    if (remaining === undefined) return '#555555';
+    if (remaining <= 0) return '#d9534f';
+    if (remaining <= 5) return '#f0ad4e';
+    return '#555555';
+  };
+
   return (
     <div>
       {/* Input row */}
       <div
         className="grid items-end gap-3"
         style={{
-          gridTemplateColumns: '1fr 120px 1fr auto auto',
-          padding: '16px',
+          gridTemplateColumns: '1fr 140px 1fr auto',
+          padding: '12px 16px',
           backgroundColor: '#ffffff',
           borderBottom: '1px solid #e0e0e0',
         }}
@@ -116,15 +141,14 @@ export default function PlayInput({
             inputMode="numeric"
             value={jugada}
             onChange={(e) => {
-              // Only allow digits
               const v = e.target.value.replace(/\D/g, '').slice(0, 6);
               onJugadaChange(v);
             }}
             onKeyDown={handleJugadaKeyDown}
             className="w-full rounded-md text-center font-semibold outline-none transition-all"
             style={{
-              height: '56px',
-              fontSize: '24px',
+              height: '52px',
+              fontSize: '22px',
               border: jugadaFlash ? '2px solid #5cb85c' : '2px solid #cccccc',
               backgroundColor: jugadaFlash ? '#e8f5e9' : '#fafafa',
               boxShadow: jugadaFlash ? '0 0 0 3px rgba(92,184,92,0.2)' : 'none',
@@ -152,16 +176,16 @@ export default function PlayInput({
             N/A
           </label>
           <div
-            className="w-full rounded-md flex items-center justify-center"
+            className="w-full rounded-md flex items-center justify-center font-medium"
             style={{
-              height: '56px',
+              height: '52px',
               backgroundColor: '#f5f5f5',
               border: '1px solid #e0e0e0',
-              fontSize: '14px',
-              color: '#555555',
+              fontSize: '13px',
+              color: getCapacityColor(),
             }}
           >
-            {detectedType || selectedLotteryName}
+            {getDisplayText()}
           </div>
         </motion.div>
 
@@ -198,7 +222,7 @@ export default function PlayInput({
               onKeyDown={handleMontoKeyDown}
               className="w-full rounded-md text-right font-semibold outline-none transition-all"
               style={{
-                height: '56px',
+                height: '52px',
                 fontSize: '20px',
                 border: '2px solid #cccccc',
                 backgroundColor: '#fafafa',
@@ -212,35 +236,63 @@ export default function PlayInput({
           </div>
         </motion.div>
 
-        {/* Spacer */}
-        <div />
-
-        {/* Ticket Dropdown + Actions */}
+        {/* Ticket dropdown + action buttons */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.15 }}
           className="flex items-center gap-2"
         >
-          <select
-            className="rounded-md outline-none"
-            style={{
-              width: '180px',
-              height: '40px',
-              border: '1px solid #cccccc',
-              fontSize: '13px',
-              color: '#333333',
-              padding: '0 8px',
-              backgroundColor: '#ffffff',
-            }}
-          >
-            <option value="">Tickets recientes...</option>
-            {recentTickets.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.ticketNumber.slice(-9)} - {formatCurrency(t.totalAmount)}
-              </option>
-            ))}
-          </select>
+          {/* Recent tickets dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center gap-1 rounded outline-none transition-colors"
+              style={{
+                height: '40px',
+                border: '1px solid #cccccc',
+                fontSize: '12px',
+                color: '#333333',
+                padding: '0 10px',
+                backgroundColor: '#ffffff',
+              }}
+            >
+              <span>Tickets recientes</span>
+              <ChevronDown size={14} />
+            </button>
+            {dropdownOpen && (
+              <div
+                className="absolute top-full left-0 mt-1 bg-white rounded shadow-lg overflow-hidden"
+                style={{
+                  width: '220px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  zIndex: 50,
+                  border: '1px solid #e0e0e0',
+                }}
+              >
+                {recentTickets.length === 0 && (
+                  <div className="px-3 py-2 text-gray-400" style={{ fontSize: '12px' }}>
+                    Sin tickets recientes
+                  </div>
+                )}
+                {recentTickets.map((t) => (
+                  <button
+                    key={t.id}
+                    className="w-full text-left px-3 py-2 transition-colors hover:bg-gray-100"
+                    style={{ fontSize: '12px', color: '#333333' }}
+                    onClick={() => setDropdownOpen(false)}
+                  >
+                    <div className="font-medium">{t.ticketNumber}</div>
+                    <div style={{ fontSize: '11px', color: '#888888' }}>
+                      {formatCurrency(t.totalAmount)} - {t.plays.length} jugadas
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             className="flex items-center justify-center rounded transition-colors"
             style={{
@@ -275,7 +327,7 @@ export default function PlayInput({
         className="flex items-center justify-between"
         style={{
           backgroundColor: '#f5f5f5',
-          padding: '12px 16px',
+          padding: '10px 16px',
           borderBottom: '1px solid #e0e0e0',
         }}
       >

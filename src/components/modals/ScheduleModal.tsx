@@ -56,7 +56,7 @@ export default function ScheduleModal({ open, onClose }: ScheduleModalProps) {
         initial="hidden"
         animate="visible"
       >
-        {scheduleData.map((item, index) => (
+        {scheduleData.map((item) => (
           <motion.div
             key={item.name}
             variants={itemVariants}
