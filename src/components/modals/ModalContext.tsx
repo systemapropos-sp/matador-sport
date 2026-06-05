@@ -1,35 +1,35 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import type { ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback } from "react";
 
 export type ModalType =
-  | 'ticketMonitor'
-  | 'schedule'
-  | 'config'
-  | 'authorize'
-  | 'randomGenerator'
-  | 'pendingPayments'
-  | 'duplicateTicket'
-  | 'duplicatePlays'
-  | 'pagar'
-  | 'printTicket'
-  | 'shareTicket'
-  | 'emailReport'
+  | "ticketMonitor"
+  | "schedule"
+  | "config"
+  | "authorize"
+  | "randomGenerator"
+  | "pendingPayments"
+  | "duplicateTicket"
+  | "duplicatePlays"
+  | "pagar"
   | null;
 
-export interface ModalState {
+interface ModalState {
   type: ModalType;
   props?: Record<string, unknown>;
 }
 
-interface ModalContextValue {
+interface ModalContextType {
   modalState: ModalState;
   openModal: (type: ModalType, props?: Record<string, unknown>) => void;
   closeModal: () => void;
 }
 
-const ModalContext = createContext<ModalContextValue | null>(null);
+const ModalContext = createContext<ModalContextType>({
+  modalState: { type: null },
+  openModal: () => {},
+  closeModal: () => {},
+});
 
-export function ModalProvider({ children }: { children: ReactNode }) {
+export function ModalProvider({ children }: { children: React.ReactNode }) {
   const [modalState, setModalState] = useState<ModalState>({ type: null });
 
   const openModal = useCallback((type: ModalType, props?: Record<string, unknown>) => {
@@ -47,10 +47,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useModalContext(): ModalContextValue {
-  const ctx = useContext(ModalContext);
-  if (!ctx) {
-    throw new Error('useModalContext must be used within a ModalProvider');
-  }
-  return ctx;
+export function useModal() {
+  return useContext(ModalContext);
 }

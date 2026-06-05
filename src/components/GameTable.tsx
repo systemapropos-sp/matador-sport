@@ -1,8 +1,8 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2 } from 'lucide-react';
-import type { Play } from '@/types';
-import { formatCurrency } from '@/lib/utils';
-import { useTheme } from '@/context/ThemeContext';
+import React from "react";
+import { Trash2 } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
+import { formatCurrency } from "@/lib/utils";
+import type { Play } from "@/types";
 
 interface GameTableProps {
   title: string;
@@ -11,164 +11,80 @@ interface GameTableProps {
   emptyRows?: number;
 }
 
-export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6 }: GameTableProps) {
-  const { gradientStart, gradientEnd, primaryColor, hexToRgba } = useTheme();
-  const total = plays.reduce((sum, p) => sum + p.amount, 0);
-
-  const formatNumber = (play: Play): string => {
-    const n = play.numbers;
-    if (play.type === 'pale' && n.length === 4) {
-      return `${n.slice(0, 2)}-${n.slice(2, 4)}`;
-    }
-    if (play.type === 'tripleta' && n.length === 6) {
-      return `${n.slice(0, 2)}-${n.slice(2, 4)}-${n.slice(4, 6)}`;
-    }
-    return n;
-  };
-
-  const displayRows = Math.max(emptyRows, plays.length);
-
-  // Compute column header color from primary
-  const colHeaderBg = hexToRgba(primaryColor, 0.35);
-  const colHeaderText = primaryColor;
+export default function GameTable({ title, plays, onDeletePlay, emptyRows = 8 }: GameTableProps) {
+  const { gradientStart, gradientEnd } = useTheme();
+  const display = [...plays];
+  while (display.length < emptyRows) {
+    display.push({ id: `empty-${display.length}`, numbers: "", amount: 0, type: "directo", lotteryId: "", lotteryName: "" });
+  }
 
   return (
-    <div
-      className="flex flex-col overflow-hidden h-full"
-      style={{
-        border: '2px solid #bbb',
-        borderRadius: '8px',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-      }}
-    >
-      {/* Header - dynamic gradient based on lottery color */}
+    <div className="border-2 border-[#bbb] rounded-lg overflow-hidden shadow-md flex flex-col">
+      {/* Header */}
       <div
-        className="text-center text-white font-bold uppercase"
-        style={{
-          background: `linear-gradient(to bottom, ${gradientStart}, ${gradientEnd})`,
-          fontSize: '14px',
-          fontWeight: 700,
-          padding: '12px',
-          letterSpacing: '1px',
-          textShadow: '0 1px 2px rgba(0,0,0,0.2)',
-          borderBottom: `2px solid ${gradientEnd}`,
-        }}
+        className="px-3 py-2 text-white text-sm font-bold uppercase tracking-wide"
+        style={{ background: `linear-gradient(135deg, ${gradientStart}, ${gradientEnd})` }}
       >
         {title}
       </div>
 
-      {/* Column Headers */}
+      {/* Column headers */}
       <div
-        className="grid items-center"
-        style={{
-          gridTemplateColumns: '1fr 1.2fr 0.8fr 32px',
-          backgroundColor: colHeaderBg,
-          padding: '8px 6px',
-        }}
+        className="grid grid-cols-[40px_1fr_70px_30px] text-xs font-bold uppercase text-gray-700"
+        style={{ background: `linear-gradient(135deg, ${gradientStart}20, ${gradientEnd}20)` }}
       >
-        <span className="uppercase font-bold" style={{ fontSize: '11px', fontWeight: 700, color: colHeaderText }}>
-          LOT
-        </span>
-        <span className="uppercase font-bold" style={{ fontSize: '11px', fontWeight: 700, color: colHeaderText }}>
-          NUM
-        </span>
-        <span className="uppercase font-bold text-right" style={{ fontSize: '11px', fontWeight: 700, color: colHeaderText }}>
-          $
-        </span>
-        <span />
+        <div className="px-2 py-1.5 border-r text-center">LOT</div>
+        <div className="px-2 py-1.5 border-r">NUM</div>
+        <div className="px-2 py-1.5 border-r text-center">$</div>
+        <div className="py-1.5 text-center"></div>
       </div>
 
       {/* Body */}
-      <div style={{ backgroundColor: '#EEEEEE', flex: 1, minHeight: '280px' }}>
-        <AnimatePresence mode="popLayout">
-          {plays.map((play, index) => (
-            <motion.div
-              key={play.id}
-              initial={{ opacity: 0, y: -10, backgroundColor: hexToRgba(primaryColor, 0.3) }}
-              animate={{ opacity: 1, y: 0, backgroundColor: 'transparent' }}
-              exit={{ opacity: 0, x: 30, transition: { duration: 0.15 } }}
-              transition={{ duration: 0.2, delay: 0 }}
-              className="grid items-center group cursor-pointer"
-              style={{
-                gridTemplateColumns: '1fr 1.2fr 0.8fr 32px',
-                height: '40px',
-                borderBottom: '1px solid #d0d0d0',
-                backgroundColor: index % 2 === 1 ? '#E0E0E0' : '#EEEEEE',
-                padding: '0 6px',
-                transition: 'background-color 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#BDBDBD';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = index % 2 === 1 ? '#E0E0E0' : '#EEEEEE';
-              }}
-              layout
-            >
-              <span className="truncate" style={{ fontSize: '13px', color: '#333', fontWeight: 500 }}>
-                {play.lotteryName}
-              </span>
-              <span style={{ fontSize: '13px', color: '#333', fontWeight: 600 }}>
-                {formatNumber(play)}
-              </span>
-              <span className="text-right" style={{ fontSize: '13px', color: '#333', fontWeight: 500 }}>
-                {formatCurrency(play.amount)}
-              </span>
-              <button
-                onClick={() => onDeletePlay(play.id)}
-                className="flex items-center justify-center rounded transition-all opacity-0 group-hover:opacity-100"
-                style={{
-                  color: '#d9534f',
-                  width: '24px',
-                  height: '24px',
-                }}
-                title="Eliminar jugada"
-              >
-                <Trash2 size={14} />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Empty placeholder rows */}
-        {plays.length < displayRows &&
-          Array.from({ length: displayRows - plays.length }).map((_, i) => (
+      <div className="flex-1">
+        {display.map((play, idx) => {
+          const isEmpty = play.id.startsWith("empty-");
+          return (
             <div
-              key={`empty-${i}`}
-              className="grid items-center"
-              style={{
-                gridTemplateColumns: '1fr 1.2fr 0.8fr 32px',
-                height: '40px',
-                borderBottom: '1px dashed #cccccc',
-                backgroundColor: (plays.length + i) % 2 === 1 ? '#E0E0E0' : '#EEEEEE',
-                padding: '0 6px',
-              }}
+              key={play.id}
+              className={`grid grid-cols-[40px_1fr_70px_30px] text-sm transition-colors ${
+                isEmpty
+                  ? idx % 2 === 0 ? "bg-[#EEEEEE]" : "bg-[#E0E0E0]"
+                  : "bg-white hover:bg-[#BDBDBD]"
+              }`}
+              style={{ height: "40px", alignItems: "center" }}
             >
-              <span>&nbsp;</span>
-              <span>&nbsp;</span>
-              <span>&nbsp;</span>
-              <span>&nbsp;</span>
+              <div className="px-2 border-r text-center text-xs text-gray-500 truncate">
+                {!isEmpty && play.lotteryName.slice(0, 4)}
+              </div>
+              <div className="px-2 border-r font-mono font-bold text-gray-800 truncate">
+                {play.numbers}
+              </div>
+              <div className="px-2 border-r text-right font-medium text-gray-700 text-xs">
+                {!isEmpty && formatCurrency(play.amount)}
+              </div>
+              <div className="text-center">
+                {!isEmpty && (
+                  <button
+                    onClick={() => onDeletePlay(play.id)}
+                    className="p-0.5 hover:bg-red-100 rounded transition-colors"
+                  >
+                    <Trash2 size={12} className="text-red-500" />
+                  </button>
+                )}
+              </div>
             </div>
-          ))}
+          );
+        })}
       </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between"
-        style={{
-          backgroundColor: '#3C3F54',
-          padding: '12px',
-          fontSize: '13px',
-          fontWeight: 700,
-          letterSpacing: '0.5px',
-        }}
-      >
-        <span style={{ color: '#ffffff' }}>
-          {plays.length} jugada{plays.length !== 1 ? 's' : ''}
-        </span>
-        <span style={{ color: '#ffffff' }}>
-          {formatCurrency(total)}
-        </span>
+      <div className="grid grid-cols-[40px_1fr_70px_30px] text-xs text-white" style={{ backgroundColor: "#3C3F54" }}>
+        <div className="px-2 py-2 border-r text-center font-bold">{plays.length}</div>
+        <div className="px-2 py-2 border-r font-medium">Total</div>
+        <div className="px-2 py-2 border-r text-right font-bold">
+          {formatCurrency(plays.reduce((s, p) => s + p.amount, 0))}
+        </div>
+        <div></div>
       </div>
     </div>
   );
