@@ -1,134 +1,229 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import {
-  FileText,
-  Search,
-  Clock,
-  HelpCircle,
-  Delete,
-  ArrowRight,
-} from "lucide-react";
+import { Delete, FileText, Search, Clock, HelpCircle } from "lucide-react";
 
 const CORRECT_PIN = "2539";
 const AUTH_DURATION = 8 * 60 * 60 * 1000; // 8 hours in ms
 
-// ──── Sub-components ───────────────────────────────────────────────
+/* ─── Floating Orb Component ─── */
+function FloatingOrb({
+  color,
+  size,
+  x,
+  y,
+  duration,
+  delay = 0,
+}: {
+  color: string;
+  size: number;
+  x: string;
+  y: string;
+  duration: number;
+  delay?: number;
+}) {
+  return (
+    <motion.div
+      style={{
+        position: "absolute",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+        left: x,
+        top: y,
+        filter: "blur(40px)",
+        pointerEvents: "none",
+        zIndex: 0,
+      }}
+      animate={{
+        x: [0, 30, -20, 15, 0],
+        y: [0, -25, 20, -15, 0],
+        scale: [1, 1.1, 0.95, 1.05, 1],
+      }}
+      transition={{
+        repeat: Infinity,
+        repeatType: "reverse",
+        duration,
+        delay,
+        ease: "easeInOut",
+      }}
+    />
+  );
+}
 
-/** 4 circular PIN dots that fill as digits are entered */
+/* ─── PIN Dots Component ─── */
 function PinDots({
   count,
   shake,
+  errorMode,
 }: {
   count: number;
   shake: boolean;
+  errorMode: boolean;
 }) {
   return (
     <motion.div
       animate={
         shake
-          ? { x: [0, -10, 10, -10, 10, 0] }
+          ? { x: [0, -12, 12, -12, 12, -8, 8, 0] }
           : { x: 0 }
       }
-      transition={{ duration: 0.4 }}
-      className="flex items-center justify-center gap-4"
+      transition={{ duration: 0.45 }}
+      className="flex items-center justify-center gap-5"
     >
       {[0, 1, 2, 3].map((i) => (
         <motion.div
           key={i}
           className="flex items-center justify-center"
           style={{
-            width: 60,
-            height: 60,
+            width: 64,
+            height: 64,
             borderRadius: "50%",
-            border: "2px solid rgba(255,255,255,0.3)",
+            border: `2px solid ${errorMode && i < count ? "rgba(217,83,79,0.6)" : i < count ? "rgba(92,184,92,0.8)" : "rgba(255,255,255,0.25)"}`,
             background:
-              i < count ? "#5cb85c" : "transparent",
+              errorMode && i < count
+                ? "rgba(217,83,79,0.3)"
+                : i < count
+                ? "#5cb85c"
+                : "transparent",
             boxShadow:
-              i < count
-                ? "0 0 20px rgba(92,184,92,0.5)"
+              errorMode && i < count
+                ? "0 0 25px rgba(217,83,79,0.4)"
+                : i < count
+                ? "0 0 25px rgba(92,184,92,0.5)"
                 : "none",
           }}
           initial={false}
           animate={
             i < count
-              ? { scale: [0, 1.2, 1], borderColor: "rgba(92,184,92,0.8)" }
-              : { scale: 1, borderColor: "rgba(255,255,255,0.3)" }
+              ? { scale: [0, 1.2, 1] }
+              : { scale: 1 }
           }
-          transition={{ duration: 0.3, ease: "easeOut" }}
+          transition={{
+            type: "spring",
+            stiffness: 400,
+            damping: 15,
+            delay: i < count ? 0 : 0,
+          }}
         >
-          {i < count && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-white font-bold text-xl"
-            >
-              <ArrowRight size={20} strokeWidth={3} />
-            </motion.div>
-          )}
+          <AnimatePresence>
+            {i < count && (
+              <motion.span
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-white font-bold text-2xl select-none"
+                style={{ textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}
+              >
+                {"*"}
+              </motion.span>
+            )}
+          </AnimatePresence>
         </motion.div>
       ))}
     </motion.div>
   );
 }
 
-/** Individual keypad button */
+/* ─── Keypad Button Component ─── */
 function KeypadButton({
   label,
   onClick,
   variant = "default",
   index = 0,
+  className = "",
 }: {
   label: React.ReactNode;
   onClick: () => void;
-  variant?: "default" | "enter" | "clear";
+  variant?: "default" | "enter" | "esc" | "backspace";
   index?: number;
+  className?: string;
 }) {
-  const baseStyle: React.CSSProperties = {
-    height: 60,
-    borderRadius: 12,
-    fontSize: variant === "enter" ? 18 : 24,
-    fontWeight: variant === "enter" ? 700 : 500,
-    cursor: "pointer",
-    userSelect: "none",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "none",
-    outline: "none",
+  const getBg = () => {
+    switch (variant) {
+      case "enter":
+        return "linear-gradient(135deg, #5cb85c, #4cae4c)";
+      case "esc":
+        return "rgba(217,83,79,0.8)";
+      case "backspace":
+        return "rgba(255,255,255,0.06)";
+      default:
+        return "rgba(255,255,255,0.06)";
+    }
   };
 
-  const variantStyles: Record<string, React.CSSProperties> = {
-    default: {
-      background: "rgba(255,255,255,0.1)",
-      color: "#fff",
-    },
-    enter: {
-      background: "#5cb85c",
-      color: "#fff",
-      gridColumn: "1 / -1",
-      width: "100%",
-    },
-    clear: {
-      background: "rgba(217,83,79,0.3)",
-      color: "#ff6b6b",
-      fontSize: 16,
-      fontWeight: 600,
-    },
+  const getHoverBg = () => {
+    switch (variant) {
+      case "enter":
+        return "linear-gradient(135deg, #4cae4c, #449d44)";
+      case "esc":
+        return "rgba(217,83,79,1)";
+      default:
+        return "rgba(255,255,255,0.12)";
+    }
+  };
+
+  const getActiveBg = () => {
+    switch (variant) {
+      case "enter":
+        return "linear-gradient(135deg, #449d44, #3d8b3d)";
+      case "esc":
+        return "rgba(201,48,44,1)";
+      default:
+        return "rgba(255,255,255,0.2)";
+    }
+  };
+
+  const getColor = () => {
+    switch (variant) {
+      case "enter":
+        return "#fff";
+      case "esc":
+        return "#fff";
+      default:
+        return "#fff";
+    }
   };
 
   return (
     <motion.button
-      style={{ ...baseStyle, ...variantStyles[variant] }}
-      initial={{ opacity: 0, y: 15 }}
+      className={className}
+      style={{
+        height: 64,
+        borderRadius: 16,
+        fontSize: variant === "enter" ? 18 : 22,
+        fontWeight: variant === "enter" ? 700 : 600,
+        cursor: "pointer",
+        userSelect: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border:
+          variant === "enter" || variant === "esc"
+            ? "none"
+            : "1px solid rgba(255,255,255,0.1)",
+        outline: "none",
+        background: getBg(),
+        color: getColor(),
+        transition: "background 0.15s ease",
+      }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
-        delay: 0.4 + index * 0.05,
-        duration: 0.3,
+        delay: 0.3 + index * 0.04,
+        duration: 0.35,
         ease: "easeOut",
       }}
-      whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.2)" }}
-      whileTap={{ scale: 0.95, backgroundColor: "rgba(255,255,255,0.3)" }}
+      whileHover={{
+        scale: 1.05,
+        background: getHoverBg(),
+      }}
+      whileTap={{
+        scale: 0.95,
+        background: getActiveBg(),
+      }}
       onClick={onClick}
     >
       {label}
@@ -136,12 +231,8 @@ function KeypadButton({
   );
 }
 
-/** Bottom-right floating shortcuts bar */
-function ShortcutsBar({
-  navigate,
-}: {
-  navigate: (path: string) => void;
-}) {
+/* ─── Shortcuts Bar ─── */
+function ShortcutsBar({ navigate }: { navigate: (path: string) => void }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const shortcuts = [
@@ -155,7 +246,7 @@ function ShortcutsBar({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.8, duration: 0.5 }}
+      transition={{ delay: 1, duration: 0.5 }}
       style={{
         position: "fixed",
         bottom: 24,
@@ -204,7 +295,6 @@ function ShortcutsBar({
             >
               <Icon size={18} />
             </motion.button>
-            {/* Tooltip */}
             <AnimatePresence>
               {hovered === i && (
                 <motion.div
@@ -238,23 +328,23 @@ function ShortcutsBar({
   );
 }
 
-// ──── Main Login Component ─────────────────────────────────────────
-
+/* ─── Main Login Component ─── */
 export default function Login() {
   const navigate = useNavigate();
-  const [pin, setPin] = useState<string>("");
-  const [error, setError] = useState<string>("");
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
+  const [errorMode, setErrorMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const autoValidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Update clock every second
+  // Update clock
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Check if already authenticated
+  // Check existing auth
   useEffect(() => {
     const ts = localStorage.getItem("matador_auth_timestamp");
     if (ts && Date.now() - parseInt(ts, 10) < AUTH_DURATION) {
@@ -262,7 +352,7 @@ export default function Login() {
     }
   }, [navigate]);
 
-  // Handle PIN validation
+  // Validate PIN
   const validatePin = useCallback(
     (p: string) => {
       if (p === CORRECT_PIN) {
@@ -271,46 +361,47 @@ export default function Login() {
         navigate("/betting-pool/ticket/create");
       } else {
         setError("PIN incorrecto");
+        setErrorMode(true);
         setShake(true);
         setTimeout(() => {
           setShake(false);
           setPin("");
-        }, 600);
+          setErrorMode(false);
+        }, 800);
       }
     },
     [navigate]
   );
 
-  // Auto-validate when 4 digits entered
+  // Auto-submit on 4 digits
   useEffect(() => {
     if (pin.length === 4) {
       autoValidateTimer.current = setTimeout(() => {
         validatePin(pin);
-      }, 500);
+      }, 400);
     }
     return () => {
       if (autoValidateTimer.current) clearTimeout(autoValidateTimer.current);
     };
   }, [pin, validatePin]);
 
-  // Handle digit input
+  // Digit input
   const handleDigit = useCallback((digit: string) => {
     setError("");
-    setPin((prev) => {
-      if (prev.length >= 4) return prev;
-      return prev + digit;
-    });
+    setPin((prev) => (prev.length >= 4 ? prev : prev + digit));
   }, []);
 
-  // Handle backspace
+  // Backspace
   const handleBackspace = useCallback(() => {
     setError("");
+    setErrorMode(false);
     setPin((prev) => prev.slice(0, -1));
   }, []);
 
-  // Handle clear
+  // Clear
   const handleClear = useCallback(() => {
     setError("");
+    setErrorMode(false);
     setPin("");
   }, []);
 
@@ -336,19 +427,26 @@ export default function Login() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pin, handleDigit, handleBackspace, handleClear, validatePin]);
 
-  // Keypad layout: 1-2-3, 4-5-6, 7-8-9, del-0-enter
-  const keypadRows = [
-    ["1", "2", "3"],
-    ["4", "5", "6"],
-    ["7", "8", "9"],
-  ];
-
   const timeStr = currentTime.toLocaleTimeString("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
   });
+
+  const dateStr = currentTime.toLocaleDateString("es-ES", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  // Keypad rows
+  const keypadNumbers = [
+    ["1", "2", "3"],
+    ["4", "5", "6"],
+    ["7", "8", "9"],
+  ];
 
   return (
     <div
@@ -360,87 +458,83 @@ export default function Login() {
         justifyContent: "center",
         position: "relative",
         overflow: "hidden",
-        background: "linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%)",
+        background: "linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 25%, #16213e 60%, #0d2137 100%)",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
       }}
     >
-      {/* Subtle animated background orbs */}
-      <div
-        style={{
-          position: "absolute",
-          top: "10%",
-          left: "15%",
-          width: 300,
-          height: 300,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(92,184,92,0.08) 0%, transparent 70%)",
-          filter: "blur(60px)",
-          animation: "pulse 8s ease-in-out infinite",
-          zIndex: 0,
-        }}
+      {/* ── Floating Orbs ── */}
+      <FloatingOrb
+        color="rgba(92,184,92,0.15)"
+        size={400}
+        x="-5%"
+        y="-10%"
+        duration={10}
+        delay={0}
       />
-      <div
-        style={{
-          position: "absolute",
-          bottom: "15%",
-          right: "10%",
-          width: 250,
-          height: 250,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(51,122,183,0.1) 0%, transparent 70%)",
-          filter: "blur(50px)",
-          animation: "pulse 10s ease-in-out infinite reverse",
-          zIndex: 0,
-        }}
+      <FloatingOrb
+        color="rgba(51,122,183,0.12)"
+        size={500}
+        x="70%"
+        y="60%"
+        duration={12}
+        delay={2}
+      />
+      <FloatingOrb
+        color="rgba(240,173,78,0.08)"
+        size={350}
+        x="30%"
+        y="40%"
+        duration={9}
+        delay={1}
+      />
+      <FloatingOrb
+        color="rgba(92,184,92,0.06)"
+        size={300}
+        x="80%"
+        y="-5%"
+        duration={11}
+        delay={3}
       />
 
-      {/* CSS for pulse animation */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 0.6; }
-          50% { transform: scale(1.2); opacity: 1; }
-        }
-      `}</style>
-
-      {/* ─── Main Card ─── */}
+      {/* ── Glassmorphism Card ── */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
         style={{
-          width: "100%",
-          maxWidth: 420,
-          margin: "0 16px",
-          padding: 40,
-          borderRadius: 16,
-          background: "rgba(255,255,255,0.05)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          boxShadow: "0 25px 50px rgba(0,0,0,0.3)",
-          position: "relative",
-          zIndex: 10,
+          width: 420,
+          padding: "48px 40px",
+          borderRadius: 24,
+          background: "rgba(255,255,255,0.08)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          boxShadow:
+            "0 25px 80px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 24,
+          position: "relative",
+          zIndex: 10,
         }}
       >
-        {/* Logo area */}
+        {/* Logo */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.5 }}
-          style={{ textAlign: "center" }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="text-center"
         >
           <h1
             style={{
-              fontSize: 28,
-              fontWeight: 700,
-              letterSpacing: 2,
+              fontSize: 32,
+              fontWeight: 800,
               color: "#fff",
+              letterSpacing: 3,
+              textShadow: "0 2px 20px rgba(92,184,92,0.3)",
               margin: 0,
-              textTransform: "uppercase",
-              fontFamily: "Arial, Helvetica, sans-serif",
+              lineHeight: 1.2,
             }}
           >
             MATADOR-SPORT
@@ -449,7 +543,8 @@ export default function Login() {
             style={{
               fontSize: 14,
               color: "rgba(255,255,255,0.5)",
-              margin: "8px 0 0 0",
+              marginTop: 6,
+              marginBottom: 30,
               letterSpacing: 1,
             }}
           >
@@ -457,43 +552,62 @@ export default function Login() {
           </p>
         </motion.div>
 
-        {/* Time display */}
+        {/* Date/Time */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          style={{
-            fontSize: 13,
-            color: "rgba(255,255,255,0.4)",
-            letterSpacing: 1,
-          }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+          className="text-center"
+          style={{ marginBottom: 24 }}
         >
-          {timeStr}
+          <div
+            style={{
+              fontSize: 13,
+              color: "rgba(255,255,255,0.4)",
+              textTransform: "capitalize",
+              marginBottom: 2,
+            }}
+          >
+            {dateStr}
+          </div>
+          <div
+            style={{
+              fontSize: 20,
+              fontWeight: 300,
+              color: "rgba(255,255,255,0.7)",
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: 1,
+            }}
+          >
+            {timeStr}
+          </div>
         </motion.div>
 
-        {/* PIN display dots */}
+        {/* PIN Dots */}
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          style={{ width: "100%" }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+          style={{ marginBottom: 28 }}
         >
-          <PinDots count={pin.length} shake={shake} />
+          <PinDots count={pin.length} shake={shake} errorMode={errorMode} />
         </motion.div>
 
-        {/* Error message */}
+        {/* Error Message */}
         <AnimatePresence>
           {error && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -8, height: 0 }}
+              transition={{ duration: 0.25 }}
               style={{
                 color: "#ff6b6b",
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: 13,
+                fontWeight: 500,
+                marginBottom: 16,
                 textAlign: "center",
+                textShadow: "0 0 10px rgba(255,107,107,0.3)",
               }}
             >
               {error}
@@ -501,7 +615,7 @@ export default function Login() {
           )}
         </AnimatePresence>
 
-        {/* Numeric keypad */}
+        {/* Keypad Grid */}
         <div
           style={{
             display: "grid",
@@ -510,67 +624,152 @@ export default function Login() {
             width: "100%",
           }}
         >
-          {keypadRows.map((row, ri) =>
-            row.map((digit, ci) => (
-              <KeypadButton
-                key={digit}
-                label={digit}
-                onClick={() => handleDigit(digit)}
-                index={ri * 3 + ci}
-              />
-            ))
+          {/* Number rows */}
+          {keypadNumbers.map((row, rowIdx) =>
+            row.map((num, colIdx) => {
+              const idx = rowIdx * 3 + colIdx;
+              return (
+                <KeypadButton
+                  key={num}
+                  label={num}
+                  onClick={() => handleDigit(num)}
+                  variant="default"
+                  index={idx}
+                />
+              );
+            })
           )}
 
-          {/* Bottom row: Backspace, 0, (empty spacer for visual balance) */}
+          {/* Bottom row: ESC, 0, Backspace */}
           <KeypadButton
-            label={<Delete size={20} />}
-            onClick={handleBackspace}
-            variant="clear"
+            label="ESC"
+            onClick={handleClear}
+            variant="esc"
             index={9}
           />
           <KeypadButton
             label="0"
             onClick={() => handleDigit("0")}
+            variant="default"
             index={10}
           />
           <KeypadButton
-            label={
-              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>
-                ESC
-              </span>
-            }
-            onClick={handleClear}
-            variant="clear"
+            label={<Delete size={22} />}
+            onClick={handleBackspace}
+            variant="backspace"
             index={11}
           />
 
-          {/* ENTER button */}
-          <KeypadButton
-            label="ENTRAR"
+          {/* ENTRAR button - spans 3 columns */}
+          <motion.button
+            style={{
+              gridColumn: "1 / -1",
+              height: 56,
+              borderRadius: 16,
+              fontSize: 17,
+              fontWeight: 700,
+              cursor: "pointer",
+              userSelect: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "none",
+              outline: "none",
+              background: "linear-gradient(135deg, #5cb85c, #4cae4c)",
+              color: "#fff",
+              textTransform: "uppercase",
+              letterSpacing: 2,
+              boxShadow: "0 4px 20px rgba(92,184,92,0.3)",
+            }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.35 }}
+            whileHover={{
+              scale: 1.02,
+              background: "linear-gradient(135deg, #4cae4c, #449d44)",
+              boxShadow: "0 6px 25px rgba(92,184,92,0.4)",
+            }}
+            whileTap={{
+              scale: 0.98,
+              background: "linear-gradient(135deg, #449d44, #3d8b3d)",
+            }}
             onClick={() => pin.length === 4 && validatePin(pin)}
-            variant="enter"
-            index={12}
-          />
+          >
+            ENTRAR
+          </motion.button>
         </div>
 
-        {/* Footer */}
-        <motion.div
+        {/* Hint */}
+        <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.9, duration: 0.5 }}
+          transition={{ delay: 0.9, duration: 0.4 }}
           style={{
-            fontSize: 11,
+            marginTop: 20,
+            fontSize: 12,
             color: "rgba(255,255,255,0.25)",
             textAlign: "center",
-            marginTop: 8,
           }}
         >
-          v1.1 &mdash; PIN de acceso: 2539
-        </motion.div>
+          Ingrese su PIN de 4 digitos
+        </motion.p>
       </motion.div>
 
-      {/* ─── Bottom shortcuts bar ─── */}
-      <ShortcutsBar navigate={(p) => navigate(p)} />
+      {/* ── Footer Links ── */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.1, duration: 0.5 }}
+        style={{
+          position: "fixed",
+          bottom: 20,
+          left: 20,
+          zIndex: 20,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.3)",
+            lineHeight: 1.6,
+          }}
+        >
+          <div>Firefox Silent Print: print.always_print_silent</div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.1, duration: 0.5 }}
+        style={{
+          position: "fixed",
+          bottom: 20,
+          right: 100,
+          zIndex: 20,
+        }}
+      >
+        <a
+          href="/drivers"
+          style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.35)",
+            textDecoration: "none",
+            transition: "color 0.2s",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.color = "rgba(255,255,255,0.6)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.color = "rgba(255,255,255,0.35)")
+          }
+        >
+          Descargar Drivers de printers
+        </a>
+      </motion.div>
+
+      {/* ── Shortcuts Bar ── */}
+      <ShortcutsBar navigate={navigate} />
     </div>
   );
 }
