@@ -33,6 +33,18 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onS
     return () => clearInterval(timer);
   }, []);
 
+  /* Global keyboard shortcut: Ctrl+V navigates to VENTAS */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        navigate('/#/betting-pool/ticket/create');
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [navigate]);
+
   /* Close dropdowns on outside click */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -42,6 +54,10 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onS
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleVentasClick = () => {
+    navigate('/#/betting-pool/ticket/create');
+  };
 
   return (
     <nav
@@ -88,6 +104,24 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onS
 
       {/* Right section */}
       <div className="flex items-center gap-1">
+        {/* VENTAS button - prominent, always visible */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={handleVentasClick}
+          className="flex items-center gap-1 rounded font-bold text-white transition-all mr-2"
+          style={{
+            backgroundColor: '#5cb85c',
+            padding: '8px 16px',
+            fontSize: '13px',
+            letterSpacing: '0.5px',
+          }}
+          title="Ctrl+V - Ir a Ventas"
+        >
+          <Ticket size={16} />
+          <span>VENTAS</span>
+        </motion.button>
+
         <button
           onClick={onSettings}
           className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"

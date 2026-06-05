@@ -1,8 +1,10 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Ticket, Clock } from 'lucide-react';
 import { regularLotteries } from '@/data/lotteries';
 import { schedules } from '@/data/schedules';
+import { useTheme } from '@/context/ThemeContext';
+import { getLotteryById } from '@/data/lotteries';
 
 interface LotterySelectorProps {
   selectedLotteries: string[];
@@ -49,6 +51,7 @@ export default function LotterySelector({
   onToggleMultiSelect,
 }: LotterySelectorProps) {
   const [page, setPage] = useState(0);
+  const { setPrimaryColor } = useTheme();
 
   // Auto-filter: only show lotteries that haven't closed yet
   const openLotteries = useMemo(() => {
@@ -64,6 +67,19 @@ export default function LotterySelector({
       return isLotteryOpen(lottery.id);
     });
   }, [selectedLotteries]);
+
+  // Update theme color when selection changes
+  useEffect(() => {
+    if (validSelected.length === 1) {
+      const lottery = getLotteryById(validSelected[0]);
+      if (lottery?.color) {
+        setPrimaryColor(lottery.color);
+      }
+    } else if (validSelected.length === 0) {
+      // Reset to default green when nothing selected
+      setPrimaryColor('#5cb85c');
+    }
+  }, [validSelected, setPrimaryColor]);
 
   const totalPages = Math.max(1, Math.ceil(openLotteries.length / VISIBLE_COUNT));
 
@@ -112,6 +128,7 @@ export default function LotterySelector({
       <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
         {visibleLotteries.map((lottery, index) => {
           const isSelected = validSelected.includes(lottery.id);
+          const lotteryColor = lottery.color || '#5cb85c';
           return (
             <motion.button
               key={lottery.id}
@@ -123,8 +140,8 @@ export default function LotterySelector({
               style={{
                 padding: '6px 10px',
                 borderRadius: '5px',
-                backgroundColor: isSelected ? '#5cb85c' : '#f0f0f0',
-                border: isSelected ? '1px solid #4cae4c' : '1px solid #dddddd',
+                backgroundColor: isSelected ? lotteryColor : '#f0f0f0',
+                border: isSelected ? `1px solid ${lotteryColor}` : '1px solid #dddddd',
                 color: isSelected ? '#ffffff' : '#444444',
                 fontSize: '11px',
                 fontWeight: 600,

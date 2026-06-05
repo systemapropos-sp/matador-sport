@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import type { Play } from '@/types';
 import { formatCurrency } from '@/lib/utils';
+import { useTheme } from '@/context/ThemeContext';
 
 interface GameTableProps {
   title: string;
@@ -10,13 +11,8 @@ interface GameTableProps {
   emptyRows?: number;
 }
 
-const rowVariants = {
-  initial: { opacity: 0, y: -10, backgroundColor: '#C8E6C9' },
-  animate: { opacity: 1, y: 0, backgroundColor: 'transparent' },
-  exit: { opacity: 0, x: 30, transition: { duration: 0.15 } },
-};
-
 export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6 }: GameTableProps) {
+  const { gradientStart, gradientEnd, primaryColor, hexToRgba } = useTheme();
   const total = plays.reduce((sum, p) => sum + p.amount, 0);
 
   const formatNumber = (play: Play): string => {
@@ -32,6 +28,10 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6 }:
 
   const displayRows = Math.max(emptyRows, plays.length);
 
+  // Compute column header color from primary
+  const colHeaderBg = hexToRgba(primaryColor, 0.35);
+  const colHeaderText = primaryColor;
+
   return (
     <div
       className="flex flex-col overflow-hidden h-full"
@@ -41,17 +41,17 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6 }:
         boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
       }}
     >
-      {/* Header - intense green gradient */}
+      {/* Header - dynamic gradient based on lottery color */}
       <div
         className="text-center text-white font-bold uppercase"
         style={{
-          background: 'linear-gradient(to bottom, #9CCC65, #689F38)',
+          background: `linear-gradient(to bottom, ${gradientStart}, ${gradientEnd})`,
           fontSize: '14px',
           fontWeight: 700,
           padding: '12px',
           letterSpacing: '1px',
           textShadow: '0 1px 2px rgba(0,0,0,0.2)',
-          borderBottom: '2px solid #558B2F',
+          borderBottom: `2px solid ${gradientEnd}`,
         }}
       >
         {title}
@@ -62,17 +62,17 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6 }:
         className="grid items-center"
         style={{
           gridTemplateColumns: '1fr 1.2fr 0.8fr 32px',
-          backgroundColor: '#C5E1A5',
+          backgroundColor: colHeaderBg,
           padding: '8px 6px',
         }}
       >
-        <span className="uppercase font-bold" style={{ fontSize: '11px', fontWeight: 700, color: '#33691E' }}>
+        <span className="uppercase font-bold" style={{ fontSize: '11px', fontWeight: 700, color: colHeaderText }}>
           LOT
         </span>
-        <span className="uppercase font-bold" style={{ fontSize: '11px', fontWeight: 700, color: '#33691E' }}>
+        <span className="uppercase font-bold" style={{ fontSize: '11px', fontWeight: 700, color: colHeaderText }}>
           NUM
         </span>
-        <span className="uppercase font-bold text-right" style={{ fontSize: '11px', fontWeight: 700, color: '#33691E' }}>
+        <span className="uppercase font-bold text-right" style={{ fontSize: '11px', fontWeight: 700, color: colHeaderText }}>
           $
         </span>
         <span />
@@ -84,10 +84,9 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6 }:
           {plays.map((play, index) => (
             <motion.div
               key={play.id}
-              variants={rowVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
+              initial={{ opacity: 0, y: -10, backgroundColor: hexToRgba(primaryColor, 0.3) }}
+              animate={{ opacity: 1, y: 0, backgroundColor: 'transparent' }}
+              exit={{ opacity: 0, x: 30, transition: { duration: 0.15 } }}
               transition={{ duration: 0.2, delay: 0 }}
               className="grid items-center group cursor-pointer"
               style={{

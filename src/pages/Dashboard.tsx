@@ -19,8 +19,9 @@ import { usePlays } from '@/hooks/usePlays';
 import { useTicket } from '@/hooks/useTicket';
 import { detectPlayType, formatCurrency } from '@/lib/utils';
 import { regularLotteries } from '@/data/lotteries';
+import { useTheme } from '@/context/ThemeContext';
 
-// ---- Reusable Icon Button ----
+// ---- Reusable Icon Button (theme-aware) ----
 function IconButton({
   icon: Icon,
   onClick,
@@ -32,6 +33,10 @@ function IconButton({
   title?: string;
   active?: boolean;
 }) {
+  const { primaryColor, hexToRgba } = useTheme();
+  const activeBg = hexToRgba(primaryColor, 0.1);
+  const hoverBg = hexToRgba(primaryColor, 0.18);
+
   return (
     <motion.button
       whileHover={{ scale: 1.05 }}
@@ -41,18 +46,18 @@ function IconButton({
       style={{
         width: '38px',
         height: '38px',
-        border: active ? '2px solid #5cb85c' : '1px solid #cccccc',
+        border: active ? `2px solid ${primaryColor}` : '1px solid #cccccc',
         borderRadius: '6px',
-        backgroundColor: active ? '#e8f5e9' : '#ffffff',
-        color: active ? '#5cb85c' : '#555555',
+        backgroundColor: active ? activeBg : '#ffffff',
+        color: active ? primaryColor : '#555555',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = active ? '#d4edda' : '#f5f5f5';
+        e.currentTarget.style.backgroundColor = active ? hoverBg : '#f5f5f5';
         e.currentTarget.style.borderColor = '#aaaaaa';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = active ? '#e8f5e9' : '#ffffff';
-        e.currentTarget.style.borderColor = active ? '#5cb85c' : '#cccccc';
+        e.currentTarget.style.backgroundColor = active ? activeBg : '#ffffff';
+        e.currentTarget.style.borderColor = active ? primaryColor : '#cccccc';
       }}
       title={title}
     >
@@ -138,6 +143,7 @@ function KeyboardHelp({ onClose }: { onClose: () => void }) {
     { key: 'Enter (JUGADA)', desc: 'Mover foco a MONTO' },
     { key: 'Enter (MONTO)', desc: 'Agregar jugada' },
     { key: 'Ctrl + Enter', desc: 'Crear ticket' },
+    { key: 'Ctrl + V', desc: 'Ir a VENTAS' },
     { key: 'Escape', desc: 'Limpiar campos' },
   ];
 
@@ -187,7 +193,7 @@ function KeyboardHelp({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ---- Play Input Section ----
+// ---- Play Input Section (theme-aware) ----
 function PlayInputSection({
   jugada,
   onJugadaChange,
@@ -213,6 +219,7 @@ function PlayInputSection({
   totalAmount: number;
   recentTickets: Array<{ ticketNumber: string; totalAmount: number; createdAt: Date }>;
 }) {
+  const { primaryColor, gradientEnd, hexToRgba } = useTheme();
   const jugadaRef = useRef<HTMLInputElement>(null);
   const montoRef = useRef<HTMLInputElement>(null);
   const [showRecent, setShowRecent] = useState(false);
@@ -242,15 +249,19 @@ function PlayInputSection({
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'directo': return '#689F38';
-      case 'pale': return '#558B2F';
-      case 'tripleta': return '#33691E';
-      case 'cash3': return '#43A047';
-      case 'play4': return '#2E7D32';
-      case 'pick5': return '#1B5E20';
+      case 'directo': return gradientEnd;
+      case 'pale': return primaryColor;
+      case 'tripleta': return primaryColor;
+      case 'cash3': return primaryColor;
+      case 'play4': return gradientEnd;
+      case 'pick5': return gradientEnd;
       default: return '#888888';
     }
   };
+
+  const counterBg = hexToRgba(primaryColor, 0.08);
+  const counterBorder = hexToRgba(primaryColor, 0.25);
+  const counterAccent = gradientEnd;
 
   return (
     <div
@@ -296,7 +307,7 @@ function PlayInputSection({
                 style={{
                   fontSize: '11px',
                   color: getTypeColor(detectedType),
-                  backgroundColor: '#E8F5E9',
+                  backgroundColor: hexToRgba(primaryColor, 0.08),
                   padding: '2px 8px',
                   borderRadius: '4px',
                 }}
@@ -357,7 +368,7 @@ function PlayInputSection({
                 padding: '12px 12px 12px 28px',
                 fontSize: '20px',
                 color: '#333',
-                borderColor: monto ? '#5cb85c' : '#cccccc',
+                borderColor: monto ? primaryColor : '#cccccc',
                 backgroundColor: '#fafafa',
               }}
               min="0"
@@ -420,7 +431,7 @@ function PlayInputSection({
                           {t.createdAt.toLocaleDateString()}
                         </span>
                       </div>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#689F38' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: counterAccent }}>
                         {formatCurrency(t.totalAmount)}
                       </span>
                     </div>
@@ -436,12 +447,12 @@ function PlayInputSection({
       <div className="flex items-center gap-4 flex-wrap">
         <div
           className="flex items-center gap-2 rounded px-4 py-2"
-          style={{ backgroundColor: '#E8F5E9', border: '1px solid #C5E1A5' }}
+          style={{ backgroundColor: counterBg, border: `1px solid ${counterBorder}` }}
         >
           <span style={{ fontSize: '12px', color: '#555', fontWeight: 600 }}>Jugadas:</span>
           <motion.span
             key={totalPlays}
-            initial={{ scale: 1.3, color: '#689F38' }}
+            initial={{ scale: 1.3, color: counterAccent }}
             animate={{ scale: 1, color: '#333' }}
             style={{ fontSize: '18px', fontWeight: 700 }}
           >
@@ -496,6 +507,8 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { primaryColor, hexToRgba } = useTheme();
 
   const showToast = useCallback((message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -648,6 +661,10 @@ export default function Dashboard() {
     ...(playsByType['pick5'] || []),
   ];
 
+  // Theme-aware shadow for CREAR TICKET
+  const ticketBtnShadow = hexToRgba(primaryColor, 0.3);
+  const successToastBg = primaryColor;
+
   return (
     <Layout onMenuToast={handleMenuToast}>
       <div
@@ -663,7 +680,7 @@ export default function Dashboard() {
               exit={{ opacity: 0, y: -30 }}
               className="fixed top-16 left-1/2 -translate-x-1/2 z-[80] px-6 py-3 rounded-md shadow-lg text-white font-bold"
               style={{
-                backgroundColor: toast.includes('creado') || toast.includes('copiad') || toast.includes('pago') ? '#5cb85c' : '#d9534f',
+                backgroundColor: toast.includes('creado') || toast.includes('copiad') || toast.includes('pago') ? successToastBg : '#d9534f',
                 fontSize: '14px',
               }}
             >
@@ -692,15 +709,15 @@ export default function Dashboard() {
             padding: '10px 16px',
           }}
         >
-          {/* CREAR TICKET */}
+          {/* CREAR TICKET - theme-aware */}
           <motion.button
-            whileHover={{ scale: 1.02, boxShadow: '0 4px 12px rgba(92, 184, 92, 0.3)' }}
+            whileHover={{ scale: 1.02, boxShadow: `0 4px 12px ${ticketBtnShadow}` }}
             whileTap={{ scale: 0.98 }}
             onClick={handleCreateTicket}
             disabled={totalPlays === 0}
             className="font-bold uppercase transition-all"
             style={{
-              backgroundColor: '#5cb85c',
+              backgroundColor: primaryColor,
               color: '#ffffff',
               padding: '12px 32px',
               borderRadius: '6px',
