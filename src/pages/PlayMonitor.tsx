@@ -120,7 +120,7 @@ export default function PlayMonitor() {
   const [selectedLotteries, setSelectedLotteries] = useState<string[]>(allLotteryIds);
   const [loading, setLoading] = useState(false);
   const [plays, setPlays] = useState<MonitoredPlay[]>([]);
-  const [, setHasRefreshed] = useState(false);
+  const [_hasRefreshed, setHasRefreshed] = useState(false);
 
   /* Load data on mount */
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function PlayMonitor() {
     setSelectedLotteries([allLotteryIds[0]]);
   }, []);
 
-  void selectedLotteries; void allLotteryIds; // reserved for future use
+  void selectedLotteries; // avoid unused warning for selection logic
 
   /* Actions */
   const handleRefresh = useCallback(() => {

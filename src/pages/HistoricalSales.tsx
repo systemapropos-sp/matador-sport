@@ -91,7 +91,7 @@ export default function HistoricalSales() {
   const [endDate, setEndDate] = useState(today);
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<HistoricalEntry[]>([]);
-  const [, setHasSearched] = useState(false);
+  const [_hasSearched, setHasSearched] = useState(false);
 
   /* Load data on mount */
   useEffect(() => {
