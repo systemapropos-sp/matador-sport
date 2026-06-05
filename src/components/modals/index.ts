@@ -9,3 +9,4 @@ export { default as RandomGeneratorModal } from './RandomGeneratorModal';
 export { default as PendingPaymentsModal } from './PendingPaymentsModal';
 export { default as DuplicateTicketModal } from './DuplicateTicketModal';
 export { default as DuplicatePlaysModal } from './DuplicatePlaysModal';
+export { default as PagarModal } from './PagarModal';

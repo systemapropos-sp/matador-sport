@@ -10,6 +10,7 @@ export type ModalType =
   | 'pendingPayments'
   | 'duplicateTicket'
   | 'duplicatePlays'
+  | 'pagar'
   | null;
 
 export interface ModalState {

@@ -8,9 +8,10 @@ import { ModalProvider, ModalManager, useModalContext } from './modals';
 
 interface LayoutProps {
   children: ReactNode;
+  onMenuToast?: (message: string) => void;
 }
 
-function LayoutInner({ children }: LayoutProps) {
+function LayoutInner({ children, onMenuToast }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(false);
   const { openModal } = useModalContext();
@@ -24,7 +25,7 @@ function LayoutInner({ children }: LayoutProps) {
         onSettings={() => openModal('config')}
         onTicketMonitor={() => openModal('ticketMonitor')}
       />
-      <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+      <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} onToast={onMenuToast} />
       <AnimatePresence>
         {resultsOpen && <ResultsPanel isOpen={resultsOpen} />}
       </AnimatePresence>
@@ -34,10 +35,10 @@ function LayoutInner({ children }: LayoutProps) {
   );
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, onMenuToast }: LayoutProps) {
   return (
     <ModalProvider>
-      <LayoutInner>{children}</LayoutInner>
+      <LayoutInner onMenuToast={onMenuToast}>{children}</LayoutInner>
     </ModalProvider>
   );
 }
