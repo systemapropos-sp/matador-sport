@@ -1,14 +1,677 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  FileText,
+  Loader2,
+  Search,
+} from 'lucide-react';
+import { format } from 'date-fns';
 import Layout from '@/components/Layout';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+} from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn, formatCurrencyLong } from '@/lib/utils';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+interface HistoricalEntry {
+  id: string;
+  code: string;
+  ref: string;
+  tickets: number;
+  venta: number;
+  comisiones: number;
+  premios: number;
+  neto: number;
+  final: number;
+  date: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  localStorage helpers                                               */
+/* ------------------------------------------------------------------ */
+
+const STORAGE_KEY = 'matador_historical_sales';
+
+function readHistoricalData(): HistoricalEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as HistoricalEntry[];
+    return parsed.map((e) => ({
+      ...e,
+      venta: Number(e.venta),
+      comisiones: Number(e.comisiones),
+      premios: Number(e.premios),
+      neto: Number(e.neto),
+      final: Number(e.final),
+      tickets: Number(e.tickets),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Skeleton loader sub-component                                      */
+/* ------------------------------------------------------------------ */
+
+function SkeletonRow() {
+  return (
+    <TableRow>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <TableCell key={i}>
+          <Skeleton className="h-4 w-full" />
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main page component                                                */
+/* ------------------------------------------------------------------ */
 
 export default function HistoricalSales() {
+  const navigate = useNavigate();
+
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [loading, setLoading] = useState(false);
+  const [entries, setEntries] = useState<HistoricalEntry[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  /* Load data on mount */
+  useEffect(() => {
+    const data = readHistoricalData();
+    if (data.length > 0) {
+      setEntries(data);
+      setHasSearched(true);
+    }
+  }, []);
+
+  /* Filter by date range */
+  const filtered = entries.filter((e) => {
+    if (!startDate && !endDate) return true;
+    const d = e.date;
+    if (startDate && d < startDate) return false;
+    if (endDate && d > endDate) return false;
+    return true;
+  });
+
+  /* Totals */
+  const totals = filtered.reduce(
+    (acc, e) => ({
+      tickets: acc.tickets + e.tickets,
+      venta: acc.venta + e.venta,
+      comisiones: acc.comisiones + e.comisiones,
+      premios: acc.premios + e.premios,
+      neto: acc.neto + e.neto,
+      final: acc.final + e.final,
+    }),
+    { tickets: 0, venta: 0, comisiones: 0, premios: 0, neto: 0, final: 0 }
+  );
+
+  const grandTotal = totals.venta;
+
+  /* Actions */
+  const handleViewSales = useCallback(() => {
+    setLoading(true);
+    // Simulate brief loading
+    setTimeout(() => {
+      const data = readHistoricalData();
+      setEntries(data);
+      setHasSearched(true);
+      setLoading(false);
+    }, 600);
+  }, []);
+
+  const handleBackToPOS = useCallback(() => {
+    navigate('/betting-pool/ticket/create');
+  }, [navigate]);
+
+  /* Animation helpers */
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.03, delayChildren: 0.1 },
+    },
+  };
+
+  const rowVariants = {
+    hidden: { opacity: 0, y: 6 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+    exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
+  };
+
   return (
     <Layout>
-      <div className="p-6">
-        <h1 className="text-xl font-semibold text-gray-800 mb-4">
-          Ventas Historicas
-        </h1>
-        <div className="p-8 bg-gray-100 rounded text-center text-gray-500">
-          [Historical Sales Page - To be implemented by historical-sales agent]
+      <div className="bg-white min-h-[calc(100dvh-50px)]">
+        {/* ====== PAGE TITLE ====== */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          style={{
+            padding: '20px 16px 12px',
+            borderBottom: '2px solid #e0e0e0',
+          }}
+        >
+          <h1
+            style={{
+              fontSize: '22px',
+              fontWeight: 600,
+              color: '#333333',
+              margin: 0,
+            }}
+          >
+            Historico de ventas
+          </h1>
+        </motion.div>
+
+        {/* ====== DATE FILTERS ====== */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.15 }}
+          style={{
+            background: '#ffffff',
+            padding: '16px',
+            borderBottom: '1px solid #e0e0e0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '16px',
+            alignItems: 'flex-end',
+          }}
+        >
+          {/* Fecha inicial */}
+          <div className="flex flex-col gap-1">
+            <label
+              style={{
+                fontSize: '12px',
+                fontWeight: 500,
+                color: '#555555',
+              }}
+            >
+              Fecha inicial
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{
+                height: '40px',
+                padding: '0 12px',
+                border: '1px solid #cccccc',
+                borderRadius: '4px',
+                fontSize: '14px',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#337ab7';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#cccccc';
+              }}
+            />
+          </div>
+
+          {/* Fecha final */}
+          <div className="flex flex-col gap-1">
+            <label
+              style={{
+                fontSize: '12px',
+                fontWeight: 500,
+                color: '#555555',
+              }}
+            >
+              Fecha final
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{
+                height: '40px',
+                padding: '0 12px',
+                border: '1px solid #cccccc',
+                borderRadius: '4px',
+                fontSize: '14px',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#337ab7';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#cccccc';
+              }}
+            />
+          </div>
+
+          {/* Ver ventas button */}
+          <Button
+            onClick={handleViewSales}
+            disabled={loading}
+            style={{
+              backgroundColor: '#337ab7',
+              color: '#ffffff',
+              padding: '10px 24px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontWeight: 500,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.backgroundColor = '#286090';
+                e.currentTarget.style.transform = 'scale(1.02)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#337ab7';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = 'scale(0.98)';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }}
+          >
+            {loading ? (
+              <Loader2 size={16} className="animate-spin mr-2" />
+            ) : (
+              <Search size={16} className="mr-2" />
+            )}
+            Ver ventas
+          </Button>
+
+          {/* Volver a punto de venta button */}
+          <Button
+            variant="outline"
+            onClick={handleBackToPOS}
+            style={{
+              backgroundColor: '#f5f5f5',
+              color: '#555555',
+              border: '1px solid #cccccc',
+              padding: '10px 24px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#e0e0e0';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#f5f5f5';
+            }}
+          >
+            Volver a punto de venta
+          </Button>
+        </motion.div>
+
+        {/* ====== TOTAL SUMMARY ====== */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          style={{
+            padding: '16px',
+            borderBottom: '2px solid #e0e0e0',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#555555',
+            }}
+          >
+            Total:{" "}
+          </span>
+          <span
+            style={{
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#333333',
+            }}
+          >
+            {formatCurrencyLong(grandTotal)}
+          </span>
+        </motion.div>
+
+        {/* ====== DATA TABLE ====== */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.25 }}
+          style={{ background: '#ffffff', overflowX: 'auto' }}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow
+                style={{
+                  backgroundColor: '#f5f5f5',
+                  borderBottom: '2px solid #dddddd',
+                }}
+              >
+                {[
+                  'Codigo',
+                  'Ref.',
+                  'Tickets',
+                  'Venta',
+                  'Comisiones',
+                  'Premios',
+                  'Neto',
+                  'Final',
+                ].map((col) => (
+                  <TableHead
+                    key={col}
+                    style={{
+                      fontSize: '12px',
+                      textTransform: 'uppercase',
+                      color: '#555555',
+                      fontWeight: 600,
+                      padding: '10px 12px',
+                    }}
+                  >
+                    {col}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              <AnimatePresence mode="wait">
+                {loading ? (
+                  /* ---- Loading skeleton ---- */
+                  <motion.tr
+                    key="skeleton"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={8} style={{ padding: 0 }}>
+                      <table className="w-full">
+                        <tbody>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <SkeletonRow key={i} />
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </motion.tr>
+                ) : filtered.length === 0 ? (
+                  /* ---- Empty state ---- */
+                  <motion.tr
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={8}>
+                      <div
+                        style={{
+                          textAlign: 'center',
+                          padding: '48px',
+                          color: '#777777',
+                          fontSize: '14px',
+                        }}
+                      >
+                        <FileText
+                          size={48}
+                          color="#cccccc"
+                          style={{ margin: '0 auto 12px' }}
+                        />
+                        No hay entradas disponibles
+                      </div>
+                    </td>
+                  </motion.tr>
+                ) : (
+                  /* ---- Data rows ---- */
+                  <motion.tr
+                    key="data"
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <td colSpan={8} style={{ padding: 0 }}>
+                      <table className="w-full">
+                        <tbody>
+                          {filtered.map((entry, index) => (
+                            <motion.tr
+                              key={entry.id}
+                              variants={rowVariants}
+                              style={{
+                                height: '44px',
+                                backgroundColor:
+                                  index % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                                borderBottom: '1px solid #eeeeee',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f0f0f0';
+                                e.currentTarget.style.transition =
+                                  'background-color 0.15s';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+                              }}
+                            >
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                }}
+                              >
+                                {entry.code}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                }}
+                              >
+                                {entry.ref}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                {entry.tickets}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {formatCurrencyLong(entry.venta)}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {formatCurrencyLong(entry.comisiones)}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {formatCurrencyLong(entry.premios)}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {formatCurrencyLong(entry.neto)}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                  textAlign: 'right',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {formatCurrencyLong(entry.final)}
+                              </TableCell>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </motion.tr>
+                )}
+              </AnimatePresence>
+            </TableBody>
+
+            {/* ====== TOTALS ROW ====== */}
+            {!loading && filtered.length > 0 && (
+              <TableFooter>
+                <TableRow
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderTop: '2px solid #cccccc',
+                    fontWeight: 600,
+                  }}
+                >
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Totales
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                    }}
+                  >
+                    -
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {totals.tickets}
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      textAlign: 'right',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatCurrencyLong(totals.venta)}
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      textAlign: 'right',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatCurrencyLong(totals.comisiones)}
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      textAlign: 'right',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatCurrencyLong(totals.premios)}
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      textAlign: 'right',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatCurrencyLong(totals.neto)}
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
+                      textAlign: 'right',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatCurrencyLong(totals.final)}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
+            )}
+          </Table>
+        </motion.div>
+
+        {/* ====== PAGINATION ====== */}
+        <div
+          style={{
+            padding: '12px 16px',
+            textAlign: 'right',
+            fontSize: '12px',
+            color: '#777777',
+          }}
+        >
+          Mostrando {filtered.length} de {entries.length} entradas
         </div>
       </div>
     </Layout>
