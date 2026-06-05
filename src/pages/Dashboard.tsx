@@ -15,7 +15,7 @@ import Layout from '@/components/Layout';
 import LotterySelector from '@/components/LotterySelector';
 import GameTable from '@/components/GameTable';
 import ShortcutsPanel from '@/components/ShortcutsPanel';
-import { usePlays, CAPACITY_LIMITS } from '@/hooks/usePlays';
+import { usePlays } from '@/hooks/usePlays';
 import { useTicket } from '@/hooks/useTicket';
 import { detectPlayType, formatCurrency } from '@/lib/utils';
 import { regularLotteries } from '@/data/lotteries';
@@ -184,114 +184,6 @@ function KeyboardHelp({ onClose }: { onClose: () => void }) {
         ))}
       </div>
     </motion.div>
-  );
-}
-
-// ---- Capacity Panel ----
-function CapacityPanel({
-  capacityUsed,
-  capacityRemaining,
-}: {
-  capacityUsed: Record<string, number>;
-  capacityRemaining: Record<string, number>;
-}) {
-  const items = [
-    { label: 'Directo', type: 'directo' },
-    { label: 'Pale', type: 'pale' },
-    { label: 'Tripleta', type: 'tripleta' },
-  ];
-
-  return (
-    <div
-      className="flex flex-col rounded-xl overflow-hidden h-full"
-      style={{ border: '2px solid #bbb', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
-    >
-      {/* Header */}
-      <div
-        className="text-center text-white font-bold uppercase"
-        style={{
-          background: 'linear-gradient(to bottom, #9CCC65, #689F38)',
-          padding: '12px',
-          fontSize: '14px',
-          fontWeight: 700,
-          letterSpacing: '1px',
-          textShadow: '0 1px 2px rgba(0,0,0,0.2)',
-          borderBottom: '2px solid #558B2F',
-        }}
-      >
-        CAPACIDAD
-      </div>
-
-      {/* Capacity items */}
-      <div className="flex flex-col p-4 gap-4" style={{ flex: 1, justifyContent: 'center', backgroundColor: '#ffffff' }}>
-        {items.map(({ label, type }) => {
-          const used = capacityUsed[type] || 0;
-          const total = CAPACITY_LIMITS[type] || 0;
-          const remaining = capacityRemaining[type] || 0;
-          const pct = total > 0 ? (used / total) * 100 : 0;
-          const isFull = remaining <= 0;
-          const isLow = remaining > 0 && remaining <= 5;
-
-          return (
-            <div key={type}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#444444', textTransform: 'uppercase' }}>
-                  {label}
-                </span>
-                <span
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    color: isFull ? '#d9534f' : isLow ? '#f0ad4e' : '#689F38',
-                  }}
-                >
-                  {used} / {total}
-                </span>
-              </div>
-              {/* Progress bar */}
-              <div
-                className="w-full rounded-full overflow-hidden"
-                style={{ height: '10px', backgroundColor: '#e0e0e0' }}
-              >
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{
-                    backgroundColor: isFull ? '#d9534f' : isLow ? '#f0ad4e' : '#689F38',
-                  }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${pct}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-              {isFull && (
-                <div style={{ fontSize: '11px', color: '#d9534f', marginTop: '4px', fontWeight: 600 }}>
-                  COMPLETO
-                </div>
-              )}
-              {isLow && (
-                <div style={{ fontSize: '11px', color: '#f0ad4e', marginTop: '4px', fontWeight: 600 }}>
-                  Quedan {remaining}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Footer */}
-      <div
-        className="text-center font-bold uppercase"
-        style={{
-          backgroundColor: '#3C3F54',
-          padding: '12px',
-          fontSize: '13px',
-          color: '#ffffff',
-          letterSpacing: '0.5px',
-        }}
-      >
-        LIMITES DE VENTA
-      </div>
-    </div>
   );
 }
 
@@ -586,8 +478,6 @@ export default function Dashboard() {
     totalPlays,
     totalAmount,
     playsByType,
-    capacityUsed,
-    capacityRemaining,
     isAtCapacity,
   } = usePlays();
 
@@ -863,11 +753,11 @@ export default function Dashboard() {
           totalAmount={totalAmount}
         />
 
-        {/* Section 4: 4-Column Game Tables Grid + Capacity Panel */}
+        {/* Section 4: 4-Column Game Tables Grid */}
         <div
           className="grid gap-3 responsive-tables"
           style={{
-            gridTemplateColumns: 'repeat(4, 1fr) 200px',
+            gridTemplateColumns: 'repeat(4, 1fr)',
             padding: '12px',
             flex: 1,
             minHeight: 0,
@@ -930,19 +820,6 @@ export default function Dashboard() {
               plays={play4Pick5Plays}
               onDeletePlay={removePlay}
               emptyRows={6}
-            />
-          </motion.div>
-
-          {/* Capacity Panel */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-            className="h-full"
-          >
-            <CapacityPanel
-              capacityUsed={capacityUsed}
-              capacityRemaining={capacityRemaining}
             />
           </motion.div>
         </div>
