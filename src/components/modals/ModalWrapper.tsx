@@ -61,18 +61,20 @@ export default function ModalWrapper({
             </DialogPrimitive.Overlay>
             <DialogPrimitive.Content asChild forceMount>
               <motion.div
-                className="fixed top-[50%] left-[50%] z-[1001] bg-white rounded-lg shadow-lg overflow-hidden flex flex-col"
-                style={{
-                  maxWidth,
-                  width: 'calc(100% - 2rem)',
-                  maxHeight: '90vh',
-                  transform: 'translate(-50%, -50%)',
-                }}
+                className="fixed inset-0 z-[1001] flex items-center justify-center pointer-events-none"
                 variants={contentVariants}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
               >
+                <div
+                  className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col pointer-events-auto"
+                  style={{
+                    maxWidth,
+                    width: 'calc(100% - 2rem)',
+                    maxHeight: '90vh',
+                  }}
+                >
                 {/* Header */}
                 <div
                   className="flex items-center justify-between shrink-0"
@@ -115,12 +117,13 @@ export default function ModalWrapper({
                   )}
                 </div>
 
-                {/* Body */}
-                <div
-                  className="overflow-y-auto modal-scrollbar"
-                  style={{ padding: '20px' }}
-                >
-                  {children}
+                  {/* Body */}
+                  <div
+                    className="overflow-y-auto modal-scrollbar"
+                    style={{ padding: '20px' }}
+                  >
+                    {children}
+                  </div>
                 </div>
               </motion.div>
             </DialogPrimitive.Content>

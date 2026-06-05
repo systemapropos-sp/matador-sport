@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu,
@@ -15,16 +16,31 @@ interface NavbarProps {
   onMenuToggle: () => void;
   onResultsToggle: () => void;
   resultsOpen: boolean;
+  onSettings?: () => void;
+  onTicketMonitor?: () => void;
 }
 
-export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen }: NavbarProps) {
+export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onSettings, onTicketMonitor }: NavbarProps) {
+  const navigate = useNavigate();
   const [clock, setClock] = useState(new Date());
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const userRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  /* Close dropdowns on outside click */
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotificationsOpen(false);
+      if (userRef.current && !userRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   return (
@@ -73,18 +89,20 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen }: N
       {/* Right section */}
       <div className="flex items-center gap-1">
         <button
+          onClick={onSettings}
           className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
           aria-label="Settings"
         >
           <Settings size={20} color="#ffffff" />
         </button>
         <button
+          onClick={onTicketMonitor}
           className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
           aria-label="Tickets"
         >
           <Ticket size={20} color="#ffffff" />
         </button>
-        <div className="relative">
+        <div className="relative" ref={userRef}>
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
@@ -109,8 +127,12 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen }: N
                   Perfil
                 </button>
                 <button
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setUserMenuOpen(false)}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                  onClick={() => {
+                    localStorage.removeItem('matador_auth_pin');
+                    localStorage.removeItem('matador_auth_timestamp');
+                    navigate('/sessions/new');
+                  }}
                 >
                   Cerrar sesion
                 </button>
@@ -118,7 +140,7 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen }: N
             )}
           </AnimatePresence>
         </div>
-        <div className="relative">
+        <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="p-2 rounded transition-opacity opacity-80 hover:opacity-100 relative"
