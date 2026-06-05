@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Eye, XCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Eye, XCircle, Lock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ModalWrapper from './ModalWrapper';
@@ -67,11 +67,124 @@ function generateMockTickets(): ExtendedTicket[] {
   return tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+// Password confirmation inline component
+function PasswordConfirmInline({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+
+  const handleConfirm = () => {
+    if (password.trim().length > 0) {
+      onConfirm();
+    } else {
+      setError(true);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleConfirm();
+    if (e.key === 'Escape') onCancel();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -5 }}
+      style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e0e0e0',
+        borderRadius: '8px',
+        padding: '16px',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        zIndex: 50,
+        minWidth: '260px',
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-2" style={{ marginBottom: '10px' }}>
+        <Lock size={16} color="#d9534f" />
+        <span style={{ fontSize: '13px', fontWeight: 600, color: '#333' }}>
+          Ingrese clave para eliminar
+        </span>
+      </div>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => {
+          setPassword(e.target.value);
+          setError(false);
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder="Clave..."
+        autoFocus
+        style={{
+          width: '100%',
+          padding: '8px 12px',
+          border: `1px solid ${error ? '#d9534f' : '#cccccc'}`,
+          borderRadius: '4px',
+          fontSize: '13px',
+          marginBottom: '10px',
+          outline: 'none',
+        }}
+      />
+      {error && (
+        <p style={{ fontSize: '11px', color: '#d9534f', margin: '-6px 0 8px 0' }}>
+          Ingrese una clave
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: '6px 12px',
+            fontSize: '12px',
+            backgroundColor: '#f5f5f5',
+            border: '1px solid #cccccc',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            color: '#555',
+          }}
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={handleConfirm}
+          style={{
+            flex: 1,
+            padding: '6px 12px',
+            fontSize: '12px',
+            backgroundColor: '#d9534f',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            color: '#fff',
+            fontWeight: 600,
+          }}
+        >
+          Confirmar
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function TicketMonitorModal({ open, onClose }: TicketMonitorModalProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
   const [tickets, setTickets] = useState<ExtendedTicket[]>(() => loadTickets());
   const [currentPage, setCurrentPage] = useState(1);
+  const [confirmTicketId, setConfirmTicketId] = useState<string | null>(null);
   const itemsPerPage = 20;
 
   const filteredTickets = useMemo(() => {
@@ -115,13 +228,36 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
   }, [tickets]);
 
   const handleCancel = (ticketId: string) => {
+    setConfirmTicketId(ticketId);
+  };
+
+  const handleConfirmCancel = () => {
+    if (!confirmTicketId) return;
     setTickets((prev) =>
       prev.map((t) =>
-        t.id === ticketId
+        t.id === confirmTicketId
           ? { ...(t as ExtendedTicket), status: 'cancelled' as TicketStatus, cancelledAt: new Date().toISOString() }
           : t
       )
     );
+    setConfirmTicketId(null);
+  };
+
+  const handleViewTicket = (ticket: ExtendedTicket) => {
+    // Store the selected ticket data and open print modal via event
+    const event = new CustomEvent('openPrintTicket', {
+      detail: {
+        ticketNumber: ticket.ticketNumber,
+        plays: ticket.plays && ticket.plays.length > 0 ? ticket.plays : [
+          { lotteryName: 'Florida PM', numbers: '12', type: 'directo' as const, amount: 5, lotteryId: '', id: 'mock-1' },
+          { lotteryName: 'Florida PM', numbers: '34', type: 'directo' as const, amount: 10, lotteryId: '', id: 'mock-2' },
+          { lotteryName: 'New York PM', numbers: '56', type: 'directo' as const, amount: 20, lotteryId: '', id: 'mock-3' },
+        ],
+        totalAmount: ticket.totalAmount,
+        createdAt: ticket.createdAt,
+      },
+    });
+    window.dispatchEvent(event);
   };
 
   const getStatusDisplay = (status: TicketStatus) => {
@@ -290,6 +426,7 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
                   style={{
                     backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9f9f9',
                     borderBottom: '1px solid #f0f0f0',
+                    position: 'relative',
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f0f0f0'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#ffffff' : '#f9f9f9'; }}
@@ -309,28 +446,40 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     {getStatusDisplay(ticket.status)}
                   </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', position: 'relative' }}>
                     <div className="flex items-center justify-center gap-2">
                       <button
                         className="rounded transition-colors"
                         style={{ padding: '4px' }}
+                        onClick={() => handleViewTicket(ticket)}
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e8f0fe'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                        title="Ver"
+                        title="Ver / Imprimir"
                       >
                         <Eye size={16} color="#337ab7" />
                       </button>
                       {ticket.status !== 'cancelled' && (
-                        <button
-                          className="rounded transition-colors"
-                          style={{ padding: '4px' }}
-                          onClick={() => handleCancel(ticket.id)}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fde8e8'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                          title="Cancelar"
-                        >
-                          <XCircle size={16} color="#d9534f" />
-                        </button>
+                        <>
+                          <button
+                            className="rounded transition-colors"
+                            style={{ padding: '4px' }}
+                            onClick={() => handleCancel(ticket.id)}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fde8e8'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            title="Cancelar"
+                          >
+                            <XCircle size={16} color="#d9534f" />
+                          </button>
+                          {/* Password confirmation overlay */}
+                          <AnimatePresence>
+                            {confirmTicketId === ticket.id && (
+                              <PasswordConfirmInline
+                                onConfirm={handleConfirmCancel}
+                                onCancel={() => setConfirmTicketId(null)}
+                              />
+                            )}
+                          </AnimatePresence>
+                        </>
                       )}
                     </div>
                   </td>
