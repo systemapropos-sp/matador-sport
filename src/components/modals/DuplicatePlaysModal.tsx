@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Play } from '@/types';
+
 
 interface DuplicatePlaysModalProps {
   open: boolean;

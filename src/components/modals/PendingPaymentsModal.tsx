@@ -36,7 +36,6 @@ function generateMockPendingTickets(): Ticket[] {
       createdAt: date.toISOString() as unknown as Date,
       vendorId: vendors[Math.floor(Math.random() * vendors.length)],
       vendorName: vendors[Math.floor(Math.random() * vendors.length)],
-      prize: 0,
     });
   }
   return tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

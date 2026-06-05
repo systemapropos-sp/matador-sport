@@ -45,13 +45,6 @@ export default function AuthorizeModal({ open, onClose }: AuthorizeModalProps) {
     setTimeout(() => setShaking(false), 400);
   };
 
-  const shakeAnimation = shaking
-    ? {
-        x: [0, -10, 10, -10, 10, 0],
-        transition: { duration: 0.4 },
-      }
-    : {};
-
   const inputStyle: React.CSSProperties = {
     height: '44px',
     width: '100%',
@@ -74,7 +67,7 @@ export default function AuthorizeModal({ open, onClose }: AuthorizeModalProps) {
 
   return (
     <ModalWrapper open={open} onClose={handleClose} title="Autorizar ponchado" maxWidth="400px">
-      <motion.div variants={shakeAnimation} animate="animate">
+      <motion.div animate={shaking ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }} transition={{ duration: 0.4 }}>
         <div className="flex flex-col gap-4">
           {/* Password */}
           <div>

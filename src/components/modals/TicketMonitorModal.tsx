@@ -47,7 +47,6 @@ function generateMockTickets(): Ticket[] {
     const date = new Date(now.getTime() - Math.random() * 30 * 24 * 60 * 60 * 1000);
     const status = statuses[Math.floor(Math.random() * statuses.length)];
     const amount = Math.round(Math.random() * 500 * 100) / 100;
-    const prize = status === 'winner' ? Math.round(amount * (2 + Math.random() * 10) * 100) / 100 : 0;
     tickets.push({
       id: `ticket-${i}`,
       ticketNumber: `MWR-001-${(58000 + i).toString().padStart(6, '0')}`,
@@ -57,8 +56,6 @@ function generateMockTickets(): Ticket[] {
       createdAt: date.toISOString() as unknown as Date,
       vendorId: vendors[Math.floor(Math.random() * vendors.length)],
       vendorName: vendors[Math.floor(Math.random() * vendors.length)],
-      prize,
-      cancelledAt: status === 'cancelled' ? new Date(date.getTime() + 3600000).toISOString() : undefined,
     });
   }
   return tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -104,7 +101,7 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
 
   const stats = useMemo(() => {
     const total = tickets.reduce((s, t) => s + t.totalAmount, 0);
-    const prizes = tickets.reduce((s, t) => s + (t.prize || 0), 0);
+    const prizes = tickets.reduce((s) => s, 0);
     const pending = tickets
       .filter((t) => t.status === 'pending')
       .reduce((s, t) => s + t.totalAmount, 0);
@@ -115,7 +112,7 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
     setTickets((prev) =>
       prev.map((t) =>
         t.id === ticketId
-          ? { ...t, status: 'cancelled' as TicketStatus, cancelledAt: new Date().toISOString() }
+          ? { ...t, status: 'cancelled' as TicketStatus }
           : t
       )
     );
@@ -298,10 +295,10 @@ export default function TicketMonitorModal({ open, onClose }: TicketMonitorModal
                     {formatCurrencyLong(ticket.totalAmount)}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {formatCurrencyLong(ticket.prize || 0)}
+                    {formatCurrencyLong(0)}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                    {ticket.cancelledAt ? formatDateDisplay(ticket.cancelledAt) : '-'}
+                    {'-'}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     {getStatusDisplay(ticket.status)}

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Printer, FileText } from 'lucide-react';
+import { Trash2, Printer } from 'lucide-react';
 import type { Ticket } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -54,8 +54,8 @@ export default function PlayInput({
   const handleMontoKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const added = onAddPlay();
-      if (added) {
+      onAddPlay();
+      {
         // Flash animation
         setJugadaFlash(true);
         setTimeout(() => setJugadaFlash(false), 300);
