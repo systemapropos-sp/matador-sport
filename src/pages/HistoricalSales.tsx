@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FileText,
   Loader2,
   Search,
+  Ticket,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import Layout from '@/components/Layout';
@@ -25,38 +25,39 @@ import { formatCurrencyLong } from '@/lib/utils';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface HistoricalEntry {
+interface StoredTicket {
   id: string;
-  code: string;
-  ref: string;
-  tickets: number;
-  venta: number;
-  comisiones: number;
-  premios: number;
-  neto: number;
-  final: number;
-  date: string;
+  ticketNumber: string;
+  plays: Array<{
+    id: string;
+    numbers: string;
+    amount: number;
+    type: string;
+    lotteryId: string;
+    lotteryName: string;
+  }>;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  vendorId: string;
+  vendorName: string;
 }
 
 /* ------------------------------------------------------------------ */
 /*  localStorage helpers                                               */
 /* ------------------------------------------------------------------ */
 
-const STORAGE_KEY = 'matador_historical_sales';
+const TICKETS_KEY = 'matador_tickets';
 
-function readHistoricalData(): HistoricalEntry[] {
+function readTickets(): StoredTicket[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(TICKETS_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as HistoricalEntry[];
-    return parsed.map((e) => ({
-      ...e,
-      venta: Number(e.venta),
-      comisiones: Number(e.comisiones),
-      premios: Number(e.premios),
-      neto: Number(e.neto),
-      final: Number(e.final),
-      tickets: Number(e.tickets),
+    const parsed = JSON.parse(raw) as StoredTicket[];
+    return parsed.map((t) => ({
+      ...t,
+      totalAmount: Number(t.totalAmount),
+      plays: t.plays || [],
     }));
   } catch {
     return [];
@@ -70,12 +71,44 @@ function readHistoricalData(): HistoricalEntry[] {
 function SkeletonRow() {
   return (
     <TableRow>
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 6 }).map((_, i) => (
         <TableCell key={i}>
           <Skeleton className="h-4 w-full" />
         </TableCell>
       ))}
     </TableRow>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Status badge helper                                                */
+/* ------------------------------------------------------------------ */
+
+function StatusBadge({ status }: { status: string }) {
+  const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
+    pending: { bg: '#fff3cd', color: '#856404', label: 'Pendiente' },
+    winner: { bg: '#d4edda', color: '#155724', label: 'Ganador' },
+    loser: { bg: '#f8d7da', color: '#721c24', label: 'Perdedor' },
+    cancelled: { bg: '#e2e3e5', color: '#383d41', label: 'Cancelado' },
+  };
+
+  const s = statusStyles[status] || { bg: '#f5f5f5', color: '#555555', label: status };
+
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 10px',
+        borderRadius: '12px',
+        fontSize: '11px',
+        fontWeight: 600,
+        backgroundColor: s.bg,
+        color: s.color,
+        textTransform: 'uppercase',
+      }}
+    >
+      {s.label}
+    </span>
   );
 }
 
@@ -90,49 +123,42 @@ export default function HistoricalSales() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [loading, setLoading] = useState(false);
-  const [entries, setEntries] = useState<HistoricalEntry[]>([]);
-  const [_hasSearched, setHasSearched] = useState(false);
+  const [tickets, setTickets] = useState<StoredTicket[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
   /* Load data on mount */
   useEffect(() => {
-    const data = readHistoricalData();
+    const data = readTickets();
     if (data.length > 0) {
-      setEntries(data);
+      setTickets(data);
       setHasSearched(true);
     }
   }, []);
 
   /* Filter by date range */
-  const filtered = entries.filter((e) => {
+  const filtered = tickets.filter((t) => {
     if (!startDate && !endDate) return true;
-    const d = e.date;
-    if (startDate && d < startDate) return false;
-    if (endDate && d > endDate) return false;
+    const ticketDate = format(new Date(t.createdAt), 'yyyy-MM-dd');
+    if (startDate && ticketDate < startDate) return false;
+    if (endDate && ticketDate > endDate) return false;
     return true;
   });
 
   /* Totals */
   const totals = filtered.reduce(
-    (acc, e) => ({
-      tickets: acc.tickets + e.tickets,
-      venta: acc.venta + e.venta,
-      comisiones: acc.comisiones + e.comisiones,
-      premios: acc.premios + e.premios,
-      neto: acc.neto + e.neto,
-      final: acc.final + e.final,
+    (acc, t) => ({
+      plays: acc.plays + (t.plays?.length || 0),
+      total: acc.total + t.totalAmount,
     }),
-    { tickets: 0, venta: 0, comisiones: 0, premios: 0, neto: 0, final: 0 }
+    { plays: 0, total: 0 }
   );
-
-  const grandTotal = totals.venta;
 
   /* Actions */
   const handleViewSales = useCallback(() => {
     setLoading(true);
-    // Simulate brief loading
     setTimeout(() => {
-      const data = readHistoricalData();
-      setEntries(data);
+      const data = readTickets();
+      setTickets(data);
       setHasSearched(true);
       setLoading(false);
     }, 600);
@@ -325,34 +351,81 @@ export default function HistoricalSales() {
         </motion.div>
 
         {/* ====== TOTAL SUMMARY ====== */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          style={{
-            padding: '16px',
-            borderBottom: '2px solid #e0e0e0',
-          }}
-        >
-          <span
+        {hasSearched && !loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
             style={{
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#555555',
+              padding: '16px',
+              borderBottom: '2px solid #e0e0e0',
+              display: 'flex',
+              gap: '32px',
+              alignItems: 'center',
             }}
           >
-            Total:{" "}
-          </span>
-          <span
-            style={{
-              fontSize: '20px',
-              fontWeight: 700,
-              color: '#333333',
-            }}
-          >
-            {formatCurrencyLong(grandTotal)}
-          </span>
-        </motion.div>
+            <div>
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#555555',
+                }}
+              >
+                Tickets:{' '}
+              </span>
+              <span
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: '#333333',
+                }}
+              >
+                {filtered.length}
+              </span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#555555',
+                }}
+              >
+                Jugadas:{' '}
+              </span>
+              <span
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: '#333333',
+                }}
+              >
+                {totals.plays}
+              </span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#555555',
+                }}
+              >
+                Total:{' '}
+              </span>
+              <span
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  color: '#333333',
+                }}
+              >
+                {formatCurrencyLong(totals.total)}
+              </span>
+            </div>
+          </motion.div>
+        )}
 
         {/* ====== DATA TABLE ====== */}
         <motion.div
@@ -370,14 +443,12 @@ export default function HistoricalSales() {
                 }}
               >
                 {[
-                  'Codigo',
-                  'Ref.',
-                  'Tickets',
-                  'Venta',
-                  'Comisiones',
-                  'Premios',
-                  'Neto',
-                  'Final',
+                  'Numero de Ticket',
+                  'Fecha',
+                  'Usuario',
+                  'Jugadas',
+                  'Total',
+                  'Estado',
                 ].map((col) => (
                   <TableHead
                     key={col}
@@ -405,7 +476,7 @@ export default function HistoricalSales() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    <td colSpan={8} style={{ padding: 0 }}>
+                    <td colSpan={6} style={{ padding: 0 }}>
                       <table className="w-full">
                         <tbody>
                           {Array.from({ length: 5 }).map((_, i) => (
@@ -423,7 +494,7 @@ export default function HistoricalSales() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    <td colSpan={8}>
+                    <td colSpan={6}>
                       <div
                         style={{
                           textAlign: 'center',
@@ -432,12 +503,12 @@ export default function HistoricalSales() {
                           fontSize: '14px',
                         }}
                       >
-                        <FileText
+                        <Ticket
                           size={48}
                           color="#cccccc"
                           style={{ margin: '0 auto 12px' }}
                         />
-                        No hay entradas disponibles
+                        No hay tickets disponibles
                       </div>
                     </td>
                   </motion.tr>
@@ -449,12 +520,12 @@ export default function HistoricalSales() {
                     initial="hidden"
                     animate="visible"
                   >
-                    <td colSpan={8} style={{ padding: 0 }}>
+                    <td colSpan={6} style={{ padding: 0 }}>
                       <table className="w-full">
                         <tbody>
-                          {filtered.map((entry, index) => (
+                          {filtered.map((ticket, index) => (
                             <motion.tr
-                              key={entry.id}
+                              key={ticket.id}
                               variants={rowVariants}
                               style={{
                                 height: '44px',
@@ -477,9 +548,11 @@ export default function HistoricalSales() {
                                   fontSize: '13px',
                                   color: '#333333',
                                   padding: '10px 12px',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 600,
                                 }}
                               >
-                                {entry.code}
+                                {ticket.ticketNumber}
                               </TableCell>
                               <TableCell
                                 style={{
@@ -488,7 +561,16 @@ export default function HistoricalSales() {
                                   padding: '10px 12px',
                                 }}
                               >
-                                {entry.ref}
+                                {format(new Date(ticket.createdAt), 'dd/MM/yyyy HH:mm')}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  fontSize: '13px',
+                                  color: '#333333',
+                                  padding: '10px 12px',
+                                }}
+                              >
+                                {ticket.vendorName}
                               </TableCell>
                               <TableCell
                                 style={{
@@ -498,47 +580,7 @@ export default function HistoricalSales() {
                                   textAlign: 'center',
                                 }}
                               >
-                                {entry.tickets}
-                              </TableCell>
-                              <TableCell
-                                style={{
-                                  fontSize: '13px',
-                                  color: '#333333',
-                                  padding: '10px 12px',
-                                  textAlign: 'right',
-                                }}
-                              >
-                                {formatCurrencyLong(entry.venta)}
-                              </TableCell>
-                              <TableCell
-                                style={{
-                                  fontSize: '13px',
-                                  color: '#333333',
-                                  padding: '10px 12px',
-                                  textAlign: 'right',
-                                }}
-                              >
-                                {formatCurrencyLong(entry.comisiones)}
-                              </TableCell>
-                              <TableCell
-                                style={{
-                                  fontSize: '13px',
-                                  color: '#333333',
-                                  padding: '10px 12px',
-                                  textAlign: 'right',
-                                }}
-                              >
-                                {formatCurrencyLong(entry.premios)}
-                              </TableCell>
-                              <TableCell
-                                style={{
-                                  fontSize: '13px',
-                                  color: '#333333',
-                                  padding: '10px 12px',
-                                  textAlign: 'right',
-                                }}
-                              >
-                                {formatCurrencyLong(entry.neto)}
+                                {ticket.plays?.length || 0}
                               </TableCell>
                               <TableCell
                                 style={{
@@ -549,7 +591,14 @@ export default function HistoricalSales() {
                                   fontWeight: 600,
                                 }}
                               >
-                                {formatCurrencyLong(entry.final)}
+                                {formatCurrencyLong(ticket.totalAmount)}
+                              </TableCell>
+                              <TableCell
+                                style={{
+                                  padding: '10px 12px',
+                                }}
+                              >
+                                <StatusBadge status={ticket.status} />
                               </TableCell>
                             </motion.tr>
                           ))}
@@ -595,11 +644,20 @@ export default function HistoricalSales() {
                       fontSize: '13px',
                       color: '#333333',
                       padding: '10px 12px',
+                    }}
+                  >
+                    -
+                  </TableCell>
+                  <TableCell
+                    style={{
+                      fontSize: '13px',
+                      color: '#333333',
+                      padding: '10px 12px',
                       textAlign: 'center',
                       fontWeight: 600,
                     }}
                   >
-                    {totals.tickets}
+                    {totals.plays}
                   </TableCell>
                   <TableCell
                     style={{
@@ -610,51 +668,16 @@ export default function HistoricalSales() {
                       fontWeight: 600,
                     }}
                   >
-                    {formatCurrencyLong(totals.venta)}
+                    {formatCurrencyLong(totals.total)}
                   </TableCell>
                   <TableCell
                     style={{
                       fontSize: '13px',
                       color: '#333333',
                       padding: '10px 12px',
-                      textAlign: 'right',
-                      fontWeight: 600,
                     }}
                   >
-                    {formatCurrencyLong(totals.comisiones)}
-                  </TableCell>
-                  <TableCell
-                    style={{
-                      fontSize: '13px',
-                      color: '#333333',
-                      padding: '10px 12px',
-                      textAlign: 'right',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {formatCurrencyLong(totals.premios)}
-                  </TableCell>
-                  <TableCell
-                    style={{
-                      fontSize: '13px',
-                      color: '#333333',
-                      padding: '10px 12px',
-                      textAlign: 'right',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {formatCurrencyLong(totals.neto)}
-                  </TableCell>
-                  <TableCell
-                    style={{
-                      fontSize: '13px',
-                      color: '#333333',
-                      padding: '10px 12px',
-                      textAlign: 'right',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {formatCurrencyLong(totals.final)}
+                    -
                   </TableCell>
                 </TableRow>
               </TableFooter>
@@ -671,7 +694,7 @@ export default function HistoricalSales() {
             color: '#777777',
           }}
         >
-          Mostrando {filtered.length} de {entries.length} entradas
+          Mostrando {filtered.length} de {tickets.length} tickets
         </div>
       </div>
     </Layout>
