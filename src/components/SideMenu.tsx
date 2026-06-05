@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Monitor,
@@ -17,28 +18,39 @@ import {
   LogOut,
   X,
 } from 'lucide-react';
+import { useModalContext } from './modals';
+import type { ModalType } from './modals/ModalContext';
 
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const menuItems = [
-  { label: 'Monitoreo', icon: Monitor },
-  { label: 'Pendientes de pago', icon: Clock },
-  { label: 'Ventas historicas', icon: Receipt },
-  { label: 'Imprimir reporte', icon: Printer },
-  { label: 'Duplicar', icon: Copy },
-  { label: 'Duplicar jugadas', icon: Layers },
-  { label: 'Jugadas', icon: Gamepad2 },
-  { label: 'Pagar', icon: Banknote },
-  { label: 'Ver ventas', icon: Eye },
-  { label: 'Horarios', icon: CalendarDays },
-  { label: 'Ayuda', icon: HelpCircle },
-  { label: 'Configuracion', icon: Settings },
-  { label: 'Autorizar ponchado', icon: ShieldCheck },
-  { label: 'Generador de jugadas aleatorias', icon: Shuffle },
-  { label: 'Cerrar sesion', icon: LogOut },
+interface MenuItemConfig {
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+  action: 'modal' | 'navigate' | 'action';
+  modalType?: ModalType;
+  route?: string;
+  handler?: () => void;
+}
+
+const menuItems: MenuItemConfig[] = [
+  { label: 'Monitoreo', icon: Monitor, action: 'modal', modalType: 'ticketMonitor' },
+  { label: 'Pendientes de pago', icon: Clock, action: 'modal', modalType: 'pendingPayments' },
+  { label: 'Ventas historicas', icon: Receipt, action: 'navigate', route: '/betting-pool/historical-sale' },
+  { label: 'Imprimir reporte', icon: Printer, action: 'action' },
+  { label: 'Duplicar', icon: Copy, action: 'modal', modalType: 'duplicateTicket' },
+  { label: 'Duplicar jugadas', icon: Layers, action: 'modal', modalType: 'duplicatePlays' },
+  { label: 'Jugadas', icon: Gamepad2, action: 'navigate', route: '/betting-pool/play-monitor' },
+  { label: 'Pagar', icon: Banknote, action: 'modal', modalType: 'pendingPayments' },
+  { label: 'Ver ventas', icon: Eye, action: 'navigate', route: '/betting-pool/historical-sale' },
+  { label: 'Horarios', icon: CalendarDays, action: 'modal', modalType: 'schedule' },
+  { label: 'Ayuda', icon: HelpCircle, action: 'action' },
+  { label: 'Configuracion', icon: Settings, action: 'modal', modalType: 'config' },
+  { label: 'Autorizar ponchado', icon: ShieldCheck, action: 'modal', modalType: 'authorize' },
+  { label: 'Generador de jugadas aleatorias', icon: Shuffle, action: 'modal', modalType: 'randomGenerator' },
+  { label: 'Cerrar sesion', icon: LogOut, action: 'action' },
 ];
 
 const overlayVariants = {
@@ -54,6 +66,29 @@ const menuVariants = {
 };
 
 export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
+  const navigate = useNavigate();
+  const { openModal } = useModalContext();
+
+  const handleItemClick = (item: MenuItemConfig) => {
+    onClose();
+
+    // Small delay to let the menu close animation start
+    setTimeout(() => {
+      if (item.action === 'modal' && item.modalType) {
+        openModal(item.modalType);
+      } else if (item.action === 'navigate' && item.route) {
+        navigate(item.route);
+      } else if (item.action === 'action') {
+        if (item.label === 'Cerrar sesion') {
+          navigate('/sessions/new');
+        } else if (item.label === 'Imprimir reporte') {
+          window.print();
+        }
+        // Ayuda - no action for now
+      }
+    }, 100);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -119,6 +154,7 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
                         fontSize: '14px',
                         color: isLogout ? '#d9534f' : '#cccccc',
                       }}
+                      onClick={() => handleItemClick(item)}
                       onMouseEnter={(e) => {
                         if (!isLogout) {
                           e.currentTarget.style.backgroundColor = '#3a3a3a';
