@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu,
   ChevronDown,
@@ -8,149 +9,167 @@ import {
   Ticket,
   User,
   Bell,
-} from "lucide-react";
-import { useModal } from "./modals/ModalContext";
-import { formatDateTime } from "@/lib/utils";
-import { lotteries } from "@/data/lotteries";
+} from 'lucide-react';
+import { formatDateTime } from '@/lib/utils';
 
 interface NavbarProps {
   onMenuToggle: () => void;
+  onResultsToggle: () => void;
+  resultsOpen: boolean;
+  onSettings?: () => void;
+  onTicketMonitor?: () => void;
 }
 
-export default function Navbar({ onMenuToggle }: NavbarProps) {
+export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onSettings, onTicketMonitor }: NavbarProps) {
   const navigate = useNavigate();
-  const { openModal } = useModal();
   const [clock, setClock] = useState(new Date());
-  const [showResults, setShowResults] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showNotif, setShowNotif] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const userRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  /* Close dropdowns on outside click */
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "v") {
-        e.preventDefault();
-        navigate("/betting-pool/ticket/create");
-      }
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotificationsOpen(false);
+      if (userRef.current && !userRef.current.contains(e.target as Node)) setUserMenuOpen(false);
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [navigate]);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-[50px] bg-[#333] flex items-center justify-between px-3 z-40 text-white shadow-lg">
-      {/* Left */}
+    <nav
+      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3"
+      style={{ height: '50px', backgroundColor: '#333333' }}
+    >
+      {/* Left section */}
       <div className="flex items-center gap-2">
         <button
           onClick={onMenuToggle}
-          className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
+          className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
+          aria-label="Menu"
         >
-          <Menu size={20} />
+          <Menu size={20} color="#ffffff" />
         </button>
-
-        <div className="relative">
-          <button
-            onClick={() => setShowResults(!showResults)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded hover:bg-white/10 transition-colors text-sm font-medium"
-          >
-            RESULTADOS
-            <ChevronDown size={14} className={`transition-transform ${showResults ? "rotate-180" : ""}`} />
-          </button>
-          {showResults && (
-            <div className="absolute top-full left-0 mt-1 w-56 bg-[#444] rounded-lg shadow-xl overflow-hidden z-50 border border-white/10">
-              {lotteries.map((l) => (
-                <div
-                  key={l.id}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-white/10 cursor-pointer text-sm"
-                  onClick={() => setShowResults(false)}
-                >
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
-                  <span>{l.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         <button
-          onClick={() => window.print()}
-          className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
+          onClick={onResultsToggle}
+          className="flex items-center gap-1 px-3 py-1.5 rounded text-white transition-opacity opacity-90 hover:opacity-100"
+          style={{ fontSize: '13px' }}
         >
-          <Printer size={18} />
+          RESULTADOS
+          <motion.span
+            animate={{ rotate: resultsOpen ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ChevronDown size={14} />
+          </motion.span>
+        </button>
+        <button
+          className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
+          aria-label="Print"
+        >
+          <Printer size={20} color="#ffffff" />
         </button>
       </div>
 
-      {/* Center */}
-      <div className="absolute left-1/2 -translate-x-1/2 text-base font-bold tracking-wide">
+      {/* Center section */}
+      <div
+        className="absolute left-1/2 transform -translate-x-1/2 text-white font-semibold hidden sm:block"
+        style={{ fontSize: '16px' }}
+      >
         MATADOR-SPORT
       </div>
 
-      {/* Right */}
-      <div className="flex items-center gap-2">
+      {/* Right section */}
+      <div className="flex items-center gap-1">
         <button
-          onClick={() => navigate("/betting-pool/ticket/create")}
-          className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-md text-sm transition-colors shadow-md"
+          onClick={onSettings}
+          className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
+          aria-label="Settings"
         >
-          VENTAS
+          <Settings size={20} color="#ffffff" />
         </button>
-
         <button
-          onClick={() => openModal("config")}
-          className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
+          onClick={onTicketMonitor}
+          className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
+          aria-label="Tickets"
         >
-          <Settings size={18} />
+          <Ticket size={20} color="#ffffff" />
         </button>
-
-        <button
-          onClick={() => openModal("ticketMonitor")}
-          className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
-        >
-          <Ticket size={18} />
-        </button>
-
-        <div className="relative">
+        <div className="relative" ref={userRef}>
           <button
-            onClick={() => { setShowNotif(!showNotif); setShowUserMenu(false); }}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="p-2 rounded transition-opacity opacity-80 hover:opacity-100"
+            aria-label="User"
           >
-            <Bell size={18} />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center font-bold">
-              3
-            </span>
+            <User size={20} color="#ffffff" />
           </button>
-          {showNotif && (
-            <div className="absolute top-full right-0 mt-1 w-64 bg-white text-gray-800 rounded-lg shadow-xl z-50 border">
-              <div className="px-3 py-2 border-b font-medium text-sm">Notificaciones</div>
-              <div className="px-3 py-2 text-sm text-gray-500">Sin nuevas notificaciones</div>
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={() => { setShowUserMenu(!showUserMenu); setShowNotif(false); }}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
-          >
-            <User size={18} />
-          </button>
-          {showUserMenu && (
-            <div className="absolute top-full right-0 mt-1 w-40 bg-white text-gray-800 rounded-lg shadow-xl z-50 border">
-              <button className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm rounded-t-lg">Perfil</button>
-              <button
-                onClick={() => { localStorage.removeItem("matador_auth"); window.location.reload(); }}
-                className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm text-red-600 rounded-b-lg"
+          <AnimatePresence>
+            {userMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-full mt-1 bg-white rounded shadow-lg py-1 min-w-[160px]"
+                style={{ zIndex: 60 }}
               >
-                Cerrar sesion
-              </button>
-            </div>
-          )}
+                <button
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Perfil
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                  onClick={() => {
+                    localStorage.removeItem('matador_auth_pin');
+                    localStorage.removeItem('matador_auth_timestamp');
+                    navigate('/sessions/new');
+                  }}
+                >
+                  Cerrar sesion
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-
-        <div className="text-xs font-mono text-gray-300 ml-1">
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className="p-2 rounded transition-opacity opacity-80 hover:opacity-100 relative"
+            aria-label="Notifications"
+          >
+            <Bell size={20} color="#ffffff" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+          </button>
+          <AnimatePresence>
+            {notificationsOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-full mt-2 bg-white rounded shadow-lg p-6"
+                style={{ width: '320px', zIndex: 60 }}
+              >
+                <p className="text-center text-gray-500" style={{ fontSize: '13px' }}>
+                  No notificaciones nuevas...
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        <div
+          className="ml-2 text-white hidden md:block"
+          style={{ fontSize: '12px', color: '#cccccc' }}
+        >
           {formatDateTime(clock)}
         </div>
       </div>

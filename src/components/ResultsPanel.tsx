@@ -1,78 +1,135 @@
-import React, { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { lotteries } from "@/data/lotteries";
-import { mockResults } from "@/data/mockResults";
+import { motion } from 'framer-motion';
+import { Printer } from 'lucide-react';
+import { mockResults } from '@/data/mockResults';
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .filter((w) => w.length > 0)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 3)
-    .toUpperCase();
+interface ResultsPanelProps {
+  isOpen: boolean;
 }
 
-export default function ResultsPanel() {
-  const [isOpen, setIsOpen] = useState(true);
-
-  const periods = [
-    { label: "Manana", filter: (_schedule: string, idx: number) => idx < 7 },
-    { label: "Tarde", filter: (_schedule: string, idx: number) => idx >= 7 && idx < 12 },
-    { label: "Noche", filter: (_schedule: string, idx: number) => idx >= 12 && idx < 21 },
-    { label: "Late Night", filter: (_schedule: string, idx: number) => idx >= 21 },
-  ];
+export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
+  if (!isOpen) return null;
 
   return (
-    <div className="bg-white border-b shadow-sm">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-center py-1.5 hover:bg-gray-50 transition-colors"
-      >
-        {isOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-      </button>
+    <motion.div
+      className="fixed left-0 right-0 bg-white overflow-y-auto"
+      style={{
+        top: '50px',
+        maxHeight: '70vh',
+        borderBottom: '2px solid #cccccc',
+        zIndex: 40,
+      }}
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+        <h3 className="font-semibold text-gray-700" style={{ fontSize: '14px' }}>
+          Resultados de Hoy
+        </h3>
+        <button
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+          style={{ fontSize: '12px' }}
+        >
+          <Printer size={14} />
+          Imprimir
+        </button>
+      </div>
 
-      {isOpen && (
-        <div className="px-4 pb-3 max-h-[220px] overflow-y-auto">
-          {periods.map((period) => {
-            const periodLotteries = lotteries.filter((_, idx) => period.filter("", idx));
-            return (
-              <div key={period.label} className="mb-3">
-                <h4 className="text-[10px] font-bold uppercase text-gray-400 mb-1 tracking-wider">
-                  {period.label}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {periodLotteries.map((l) => {
-                    const result = mockResults.find((r) => r.lotteryId === l.id);
-                    return (
-                      <div
-                        key={l.id}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs"
-                        style={{ borderLeftColor: l.color, borderLeftWidth: "3px" }}
-                      >
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                          style={{ backgroundColor: l.color }}
-                        >
-                          {getInitials(l.name)}
-                        </div>
-                        <span className="font-medium text-gray-700 text-[10px]">{l.name}</span>
-                        {result && (
-                          <div className="flex gap-1 ml-1 font-mono text-[10px]">
-                            <span className="px-1 bg-green-100 text-green-700 rounded font-bold">{result.primera}</span>
-                            <span className="px-1 bg-blue-100 text-blue-700 rounded font-bold">{result.segunda}</span>
-                            <span className="px-1 bg-purple-100 text-purple-700 rounded font-bold">{result.tercera}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+      {/* Results grid */}
+      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        {mockResults.map((result) => (
+          <div
+            key={result.lotteryId}
+            className="border border-gray-200 rounded p-2.5"
+            style={{ backgroundColor: '#fafafa' }}
+          >
+            <h4
+              className="font-semibold text-gray-800 mb-2 truncate"
+              style={{ fontSize: '12px' }}
+            >
+              {result.lotteryName}
+            </h4>
+            <div className="grid grid-cols-2 gap-1">
+              <div className="text-center">
+                <div style={{ fontSize: '10px', color: '#777777', textTransform: 'uppercase' }}>
+                  1era
+                </div>
+                <div
+                  className="font-bold text-gray-800"
+                  style={{ fontSize: '13px' }}
+                >
+                  {result.primera}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+              <div className="text-center">
+                <div style={{ fontSize: '10px', color: '#777777', textTransform: 'uppercase' }}>
+                  2da
+                </div>
+                <div
+                  className="font-bold text-gray-800"
+                  style={{ fontSize: '13px' }}
+                >
+                  {result.segunda}
+                </div>
+              </div>
+              {result.tercera && (
+                <div className="text-center">
+                  <div style={{ fontSize: '10px', color: '#777777', textTransform: 'uppercase' }}>
+                    3era
+                  </div>
+                  <div
+                    className="font-bold text-gray-800"
+                    style={{ fontSize: '13px' }}
+                  >
+                    {result.tercera}
+                  </div>
+                </div>
+              )}
+              {result.pick3 && (
+                <div className="text-center">
+                  <div style={{ fontSize: '10px', color: '#777777', textTransform: 'uppercase' }}>
+                    Pick 3
+                  </div>
+                  <div
+                    className="font-bold text-gray-800"
+                    style={{ fontSize: '13px' }}
+                  >
+                    {result.pick3}
+                  </div>
+                </div>
+              )}
+              {result.pick4 && (
+                <div className="text-center">
+                  <div style={{ fontSize: '10px', color: '#777777', textTransform: 'uppercase' }}>
+                    Pick 4
+                  </div>
+                  <div
+                    className="font-bold text-gray-800"
+                    style={{ fontSize: '13px' }}
+                  >
+                    {result.pick4}
+                  </div>
+                </div>
+              )}
+              {result.pick5 && (
+                <div className="text-center">
+                  <div style={{ fontSize: '10px', color: '#777777', textTransform: 'uppercase' }}>
+                    Pick 5
+                  </div>
+                  <div
+                    className="font-bold text-gray-800"
+                    style={{ fontSize: '13px' }}
+                  >
+                    {result.pick5}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
   );
 }

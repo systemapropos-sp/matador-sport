@@ -1,13 +1,16 @@
 export type PlayType = 'directo' | 'pale' | 'tripleta' | 'cash3' | 'play4' | 'pick5' | 'super-pale';
+
 export type TicketStatus = 'pending' | 'winner' | 'loser' | 'cancelled';
-export type LotteryType = 'regular' | 'super-pale';
+
+export type LotteryType = 'regular' | 'super-pale' | 'pick345';
 
 export interface Lottery {
   id: string;
   name: string;
   schedule: string;
   type: LotteryType;
-  color: string;
+  icon?: string;
+  color?: string;
 }
 
 export interface Play {
@@ -25,13 +28,34 @@ export interface Ticket {
   plays: Play[];
   totalAmount: number;
   status: TicketStatus;
-  createdAt: string;
+  createdAt: Date;
   vendorId: string;
   vendorName: string;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  role: 'vendor' | 'admin' | 'supervisor';
+  branchId: string;
+}
+
+export interface Result {
+  lotteryId: string;
+  lotteryName: string;
+  date: string;
+  primera: string;
+  segunda: string;
+  tercera?: string;
+  pick3?: string;
+  pick4?: string;
+  pick5?: string;
 }
 
 export interface Schedule {
   lotteryId: string;
   lotteryName: string;
   closingTime: string;
+  isOpen: boolean;
 }

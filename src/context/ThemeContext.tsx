@@ -1,36 +1,41 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
-import { lighten, darken } from "@/lib/utils";
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 interface ThemeContextType {
   primaryColor: string;
-  setPrimaryColor: (color: string) => void;
-  gradientStart: string;
-  gradientEnd: string;
+  setPrimaryColor: (c: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  primaryColor: "#5cb85c",
+  primaryColor: '#5cb85c',
   setPrimaryColor: () => {},
-  gradientStart: "#80c880",
-  gradientEnd: "#3d8b3d",
 });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [primaryColor, setPrimaryColorState] = useState("#5cb85c");
-  const gradientStart = useMemo(() => lighten(primaryColor, 0.2), [primaryColor]);
-  const gradientEnd = useMemo(() => darken(primaryColor, 0.2), [primaryColor]);
-
-  const setPrimaryColor = useCallback((color: string) => {
-    setPrimaryColorState(color);
-  }, []);
-
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [primaryColor, setPrimaryColor] = useState('#5cb85c');
   return (
-    <ThemeContext.Provider value={{ primaryColor, setPrimaryColor, gradientStart, gradientEnd }}>
+    <ThemeContext.Provider value={{ primaryColor, setPrimaryColor }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-export function useTheme() {
+export function useThemeContext() {
   return useContext(ThemeContext);
+}
+
+// Helper: lighten/darken hex color
+export function lighten(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, ((num >> 16) & 0xff) + Math.round(255 * amount));
+  const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * amount));
+  const b = Math.min(255, (num & 0xff) + Math.round(255 * amount));
+  return `rgb(${r},${g},${b})`;
+}
+
+export function darken(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, ((num >> 16) & 0xff) - Math.round(255 * amount));
+  const g = Math.max(0, ((num >> 8) & 0xff) - Math.round(255 * amount));
+  const b = Math.max(0, (num & 0xff) - Math.round(255 * amount));
+  return `rgb(${r},${g},${b})`;
 }
