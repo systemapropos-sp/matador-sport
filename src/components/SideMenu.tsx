@@ -21,6 +21,8 @@ import {
   Users,
   UserPlus,
   ChevronDown,
+  Scale,
+  Calculator,
 } from 'lucide-react';
 import { useModalContext } from './modals';
 import type { ModalType } from './modals/ModalContext';
@@ -44,6 +46,8 @@ interface MenuItemConfig {
 const menuItems: MenuItemConfig[] = [
   { label: 'Monitoreo', icon: Monitor, action: 'modal', modalType: 'ticketMonitor' },
   { label: 'Pendientes de pago', icon: Clock, action: 'modal', modalType: 'pendingPayments' },
+  { label: 'Balances', icon: Scale, action: 'modal', modalType: 'balance' },
+  { label: 'Contabilidad', icon: Calculator, action: 'modal', modalType: 'accounting' },
   { label: 'Ventas historicas', icon: Receipt, action: 'navigate', route: '/betting-pool/historical-sale' },
   { label: 'Imprimir reporte', icon: Printer, action: 'action' },
   { label: 'Duplicar', icon: Copy, action: 'modal', modalType: 'duplicateTicket' },

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { regularLotteries } from '@/data/lotteries';
@@ -12,11 +12,6 @@ interface LotterySelectorProps {
   onToggleMultiSelect: () => void;
 }
 
-const VISIBLE_COUNT = 10;
-
-/**
- * Parse a time string like "09:45 AM" to minutes since midnight
- */
 function parseTimeToMinutes(timeStr: string): number {
   const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
   if (!match) return 0;
@@ -28,19 +23,17 @@ function parseTimeToMinutes(timeStr: string): number {
   return hours * 60 + minutes;
 }
 
-/**
- * Check if a lottery's closing time has already passed today
- */
 function isLotteryOpen(lotteryId: string): boolean {
   const schedule = schedules.find((s) => s.lotteryId === lotteryId);
   if (!schedule) return true;
-
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const closingMinutes = parseTimeToMinutes(schedule.closingTime);
-
-  // If closing time has passed, lottery is closed
   return currentMinutes < closingMinutes;
+}
+
+function getSchedule(lotteryId: string) {
+  return schedules.find((s) => s.lotteryId === lotteryId);
 }
 
 export default function LotterySelector({
@@ -50,15 +43,11 @@ export default function LotterySelector({
   onToggleMultiSelect,
 }: LotterySelectorProps) {
   const { setPrimaryColor } = useThemeContext();
-  const [page, setPage] = useState(0);
 
-  // Auto-filter: only show lotteries that haven't closed yet
   const openLotteries = useMemo(() => {
     return regularLotteries.filter((l) => isLotteryOpen(l.id));
   }, []);
 
-  // Also check if currently selected lotteries are still open
-  // and auto-deselect any that have closed
   const validSelected = useMemo(() => {
     return selectedLotteries.filter((id) => {
       const lottery = regularLotteries.find((l) => l.id === id);
@@ -67,17 +56,39 @@ export default function LotterySelector({
     });
   }, [selectedLotteries]);
 
-  const totalPages = Math.max(1, Math.ceil(openLotteries.length / VISIBLE_COUNT));
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const goLeft = useCallback(() => setPage((p) => Math.max(0, p - 1)), []);
-  const goRight = useCallback(() => setPage((p) => Math.min(totalPages - 1, p + 1)), [totalPages]);
+  const goLeft = useCallback(() => {
+    scrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' });
+  }, []);
 
-  const visibleLotteries = openLotteries.slice(
-    page * VISIBLE_COUNT,
-    (page + 1) * VISIBLE_COUNT
-  );
+  const goRight = useCallback(() => {
+    scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' });
+  }, []);
 
-  // Current time display
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (scrollRef.current) {
+      e.preventDefault();
+      scrollRef.current.scrollLeft += e.deltaY;
+    }
+  }, []);
+
+  const touchStartX = useRef<number | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 30) {
+      if (diff > 0) goRight();
+      else goLeft();
+    }
+    touchStartX.current = null;
+  }, [goLeft, goRight]);
+
   const currentTimeStr = new Date().toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
@@ -96,24 +107,31 @@ export default function LotterySelector({
       {/* Left arrow */}
       <button
         onClick={goLeft}
-        disabled={page === 0}
         className="flex-shrink-0 rounded-full flex items-center justify-center transition-colors"
         style={{
           width: '28px',
           height: '28px',
-          backgroundColor: page === 0 ? '#eeeeee' : '#f5f5f5',
-          cursor: page === 0 ? 'not-allowed' : 'pointer',
+          backgroundColor: '#f5f5f5',
+          cursor: 'pointer',
         }}
-        onMouseEnter={(e) => { if (page > 0) e.currentTarget.style.backgroundColor = '#e0e0e0'; }}
-        onMouseLeave={(e) => { if (page > 0) e.currentTarget.style.backgroundColor = '#f5f5f5'; }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e0e0e0'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f5f5f5'; }}
       >
-        <ChevronLeft size={16} color={page === 0 ? '#aaaaaa' : '#555555'} />
+        <ChevronLeft size={16} color="#555555" />
       </button>
 
-      {/* Lottery cards - compact for 10 visible */}
-      <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
-        {visibleLotteries.map((lottery, index) => {
+      {/* Lottery cards - scrollable */}
+      <div
+        ref={scrollRef}
+        className="flex items-center gap-1.5 flex-1 overflow-x-auto"
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        style={{ scrollbarWidth: 'thin' }}
+      >
+        {openLotteries.map((lottery, index) => {
           const isSelected = validSelected.includes(lottery.id);
+          const schedule = getSchedule(lottery.id);
           return (
             <motion.button
               key={lottery.id}
@@ -124,37 +142,56 @@ export default function LotterySelector({
                 onToggleLottery(lottery.id);
                 if (lottery.color) setPrimaryColor(lottery.color);
               }}
-              className="flex items-center justify-center gap-1.5 rounded transition-all cursor-pointer whitespace-nowrap"
+              className="flex items-center justify-center gap-1.5 rounded transition-all cursor-pointer whitespace-nowrap flex-shrink-0"
               style={{
-                padding: '8px 10px',
+                padding: '6px 10px',
                 borderRadius: '6px',
                 backgroundColor: isSelected ? (lottery.color || '#5cb85c') : '#f0f0f0',
                 border: isSelected ? '1px solid rgba(0,0,0,0.15)' : '1px solid #dddddd',
                 color: isSelected ? '#ffffff' : '#444444',
                 fontSize: '11px',
                 fontWeight: 600,
-                flex: 1,
                 minWidth: 0,
                 boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.2)' : 'none',
               }}
               whileHover={{ scale: isSelected ? 1 : 1.03 }}
               whileTap={{ scale: 0.97 }}
             >
-              {/* Logo circle with initials */}
+              {/* Logo image or fallback */}
+              {lottery.icon ? (
+                <img
+                  src={lottery.icon}
+                  alt={lottery.name}
+                  className="rounded-full flex-shrink-0"
+                  style={{ width: '20px', height: '20px', objectFit: 'cover' }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
               <span
                 className="flex items-center justify-center rounded-full flex-shrink-0"
                 style={{
-                  width: '18px',
-                  height: '18px',
+                  width: '20px',
+                  height: '20px',
                   backgroundColor: isSelected ? 'rgba(255,255,255,0.3)' : (lottery.color || '#ccc'),
                   fontSize: '8px',
                   fontWeight: 800,
-                  color: isSelected ? '#fff' : '#fff',
+                  color: '#fff',
+                  display: lottery.icon ? 'none' : 'flex',
                 }}
               >
                 {lottery.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
               </span>
-              <span className="truncate">{lottery.name}</span>
+              <div className="flex flex-col items-start">
+                <span className="truncate">{lottery.name}</span>
+                <span style={{ fontSize: '9px', fontWeight: 700, opacity: 0.9 }}>
+                  {schedule ? `Cierra ${schedule.closingTime}` : ''}
+                </span>
+              </div>
             </motion.button>
           );
         })}
@@ -163,18 +200,17 @@ export default function LotterySelector({
       {/* Right arrow */}
       <button
         onClick={goRight}
-        disabled={page >= totalPages - 1}
         className="flex-shrink-0 rounded-full flex items-center justify-center transition-colors"
         style={{
           width: '28px',
           height: '28px',
-          backgroundColor: page >= totalPages - 1 ? '#eeeeee' : '#f5f5f5',
-          cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
+          backgroundColor: '#f5f5f5',
+          cursor: 'pointer',
         }}
-        onMouseEnter={(e) => { if (page < totalPages - 1) e.currentTarget.style.backgroundColor = '#e0e0e0'; }}
-        onMouseLeave={(e) => { if (page < totalPages - 1) e.currentTarget.style.backgroundColor = '#f5f5f5'; }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e0e0e0'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f5f5f5'; }}
       >
-        <ChevronRight size={16} color={page >= totalPages - 1 ? '#aaaaaa' : '#555555'} />
+        <ChevronRight size={16} color="#555555" />
       </button>
 
       {/* Mult. lot toggle */}
@@ -205,7 +241,7 @@ export default function LotterySelector({
         </button>
       </div>
 
-      {/* Current time indicator */}
+      {/* Current time */}
       <div
         className="flex items-center gap-1 flex-shrink-0 ml-1"
         style={{

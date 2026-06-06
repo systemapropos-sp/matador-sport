@@ -13,6 +13,8 @@ export type ModalType =
   | 'pagar'
   | 'clientCreate'
   | 'clientList'
+  | 'balance'
+  | 'accounting'
   | null;
 
 export interface ModalState {

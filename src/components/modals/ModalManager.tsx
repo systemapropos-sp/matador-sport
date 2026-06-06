@@ -10,6 +10,8 @@ import DuplicatePlaysModal from './DuplicatePlaysModal';
 import PagarModal from './PagarModal';
 import ClientModal from './ClientModal';
 import ClientListModal from './ClientListModal';
+import BalanceModal from './BalanceModal';
+import AccountingModal from './AccountingModal';
 
 export default function ModalManager() {
   const { modalState, closeModal } = useModalContext();
@@ -37,6 +39,10 @@ export default function ModalManager() {
       return <ClientModal />;
     case 'clientList':
       return <ClientListModal />;
+    case 'balance':
+      return <BalanceModal />;
+    case 'accounting':
+      return <AccountingModal />;
     default:
       return null;
   }

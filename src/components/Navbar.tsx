@@ -9,8 +9,10 @@ import {
   Ticket,
   User,
   Bell,
+  Store,
 } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
+import { useVendedores } from '@/hooks/useVendedores';
 
 interface NavbarProps {
   onMenuToggle: () => void;
@@ -27,6 +29,7 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onS
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const { activeVendedor } = useVendedores();
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000);
@@ -166,11 +169,35 @@ export default function Navbar({ onMenuToggle, onResultsToggle, resultsOpen, onS
             )}
           </AnimatePresence>
         </div>
-        <div
-          className="ml-2 text-white hidden md:block"
-          style={{ fontSize: '12px', color: '#cccccc' }}
+        {/* VENTAS button */}
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-1 px-3 py-1.5 rounded font-bold transition-opacity ml-2"
+          style={{
+            fontSize: '13px',
+            backgroundColor: '#FF9800',
+            color: '#ffffff',
+            border: 'none',
+            cursor: 'pointer',
+            opacity: 0.95,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.95'; }}
         >
-          {formatDateTime(clock)}
+          <Store size={16} />
+          <span className="hidden sm:inline">VENTAS</span>
+        </button>
+
+        <div className="flex items-center gap-2 ml-2">
+          <span
+            className="hidden md:inline font-bold px-2 py-0.5 rounded"
+            style={{ fontSize: '11px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
+          >
+            {activeVendedor?.name || 'Vendedor'}
+          </span>
+          <span style={{ fontSize: '12px', color: '#cccccc' }}>
+            {formatDateTime(clock)}
+          </span>
         </div>
       </div>
     </nav>

@@ -1,15 +1,23 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardList,
   Printer,
   DollarSign,
   HelpCircle,
-  FileText,
   X,
   Keyboard,
   Ticket,
   ChevronDown,
+  Monitor,
+  Wallet,
+  BarChart3,
+  Scale,
+  Calculator,
+  Shuffle,
+  Copy,
+  Users,
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import LotterySelector from '@/components/LotterySelector';
@@ -19,7 +27,9 @@ import { usePlays } from '@/hooks/usePlays';
 import { useTicket } from '@/hooks/useTicket';
 import { detectPlayType, formatCurrency } from '@/lib/utils';
 import { regularLotteries } from '@/data/lotteries';
-import { useThemeContext } from '@/context/ThemeContext';
+import { useVendedores } from '@/hooks/useVendedores';
+import { useModalContext } from '@/components/modals';
+import { schedules } from '@/data/schedules';
 
 // ---- Reusable Icon Button ----
 function IconButton({
@@ -56,29 +66,6 @@ function IconButton({
       title={title}
     >
       <Icon size={17} />
-    </motion.button>
-  );
-}
-
-// ---- PLAYS Button ----
-function PlaysButton({ onClick }: { onClick?: () => void }) {
-  return (
-    <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className="flex items-center gap-2 rounded transition-colors font-semibold"
-      style={{
-        padding: '9px 18px',
-        border: '1px solid #cccccc',
-        borderRadius: '6px',
-        backgroundColor: '#ffffff',
-        fontSize: '13px',
-        color: '#555555',
-      }}
-    >
-      <FileText size={16} />
-      <span>PLAYS</span>
     </motion.button>
   );
 }
@@ -186,6 +173,237 @@ function KeyboardHelp({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ---- Duplicar Dropdown ----
+function DuplicarDropdown() {
+  const [open, setOpen] = useState(false);
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const openLotteries = regularLotteries.filter((l) => {
+    const schedule = schedules.find((s) => s.lotteryId === l.id);
+    if (!schedule) return true;
+    const match = schedule.closingTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!match) return true;
+    let h = parseInt(match[1], 10);
+    const ampm = match[3].toUpperCase();
+    if (ampm === 'PM' && h !== 12) h += 12;
+    return currentMinutes < h * 60 + parseInt(match[2], 10);
+  });
+
+  return (
+    <div className="relative">
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 rounded transition-colors font-semibold"
+        style={{
+          padding: '9px 18px',
+          border: '1px solid #cccccc',
+          borderRadius: '6px',
+          backgroundColor: '#ffffff',
+          fontSize: '13px',
+          color: '#555555',
+        }}
+      >
+        <Copy size={16} />
+        <span>Duplicar</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronDown size={14} />
+        </motion.span>
+      </motion.button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -5, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -5, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full right-0 mt-1 bg-white rounded shadow-lg overflow-hidden"
+            style={{ zIndex: 50, border: '1px solid #e0e0e0', width: '240px', maxHeight: '300px', overflowY: 'auto' }}
+          >
+            <div className="px-3 py-2 border-b border-gray-200 font-semibold" style={{ fontSize: '12px', color: '#555' }}>
+              Loterias disponibles ({openLotteries.length})
+            </div>
+            {openLotteries.map((lottery) => (
+              <button
+                key={lottery.id}
+                className="w-full flex items-center gap-2 px-3 py-2 transition-colors hover:bg-gray-50 text-left"
+                style={{ fontSize: '12px', color: '#333' }}
+                onClick={() => setOpen(false)}
+              >
+                <span
+                  className="rounded-full flex-shrink-0"
+                  style={{ width: '14px', height: '14px', backgroundColor: lottery.color || '#ccc' }}
+                />
+                {lottery.name}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---- Client Selector ----
+function ClientSelector({ onSelect, selectedClient }: { onSelect: (clientId: string) => void; selectedClient: string }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [clients, setClients] = useState<Array<{ id: string; name: string; phone?: string }>>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('matador_clients');
+      if (stored) setClients(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, [open]);
+
+  const filtered = search.trim()
+    ? clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone && c.phone.includes(search)))
+    : clients;
+
+  const selectedName = clients.find((c) => c.id === selectedClient)?.name;
+
+  return (
+    <div className="relative">
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => { setOpen(!open); setSearch(''); }}
+        className="flex items-center gap-1 rounded border transition-colors"
+        style={{
+          padding: '14px 16px',
+          fontSize: '13px',
+          color: selectedName ? '#333' : '#999',
+          borderColor: '#cccccc',
+          backgroundColor: '#ffffff',
+          minHeight: '55px',
+          fontWeight: selectedName ? 600 : 400,
+        }}
+      >
+        <Users size={16} />
+        <span>{selectedName || 'Cliente'}</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronDown size={14} />
+        </motion.span>
+      </motion.button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -5, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -5, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full left-0 mt-1 bg-white rounded shadow-lg overflow-hidden"
+            style={{ zIndex: 50, border: '1px solid #e0e0e0', width: '260px' }}
+          >
+            <div className="p-2 border-b border-gray-200">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar cliente..."
+                className="w-full px-3 py-2 rounded border text-sm"
+                style={{ borderColor: '#e0e0e0', outline: 'none' }}
+                autoFocus
+              />
+            </div>
+            <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+              <button
+                className="w-full text-left px-4 py-2 transition-colors hover:bg-gray-50"
+                style={{ fontSize: '12px', color: '#999' }}
+                onClick={() => { onSelect(''); setOpen(false); }}
+              >
+                Ninguno
+              </button>
+              {filtered.map((c) => (
+                <button
+                  key={c.id}
+                  className="w-full text-left px-4 py-2 transition-colors hover:bg-gray-50 flex items-center gap-2"
+                  style={{ fontSize: '12px', color: '#333' }}
+                  onClick={() => { onSelect(c.id); setOpen(false); }}
+                >
+                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{c.name}</span>
+                    {c.phone && <span style={{ fontSize: '10px', color: '#888' }}>{c.phone}</span>}
+                  </div>
+                </button>
+              ))}
+              {filtered.length === 0 && (
+                <div className="px-4 py-3 text-center" style={{ fontSize: '12px', color: '#999' }}>
+                  No encontrado
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---- Quick Access Bar ----
+function QuickAccessBar({ openModal }: { openModal: (type: any) => void }) {
+  const items = [
+    { icon: Monitor, label: 'Monitor', modal: 'ticketMonitor' },
+    { icon: Wallet, label: 'Pendientes', modal: 'pendingPayments' },
+    { icon: Scale, label: 'Balances', modal: 'balance' },
+    { icon: Calculator, label: 'Contab.', modal: 'accounting' },
+    { icon: BarChart3, label: 'Historial', route: '/betting-pool/historical-sale' },
+    { icon: Copy, label: 'Duplicar', modal: 'duplicateTicket' },
+    { icon: Shuffle, label: 'Generador', modal: 'randomGenerator' },
+  ];
+
+  const navigate = useNavigate();
+
+  return (
+    <div
+      className="flex items-center gap-1 overflow-x-auto"
+      style={{
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e0e0e0',
+        padding: '6px 12px',
+      }}
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <motion.button
+            key={item.label}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              if ((item as any).route) {
+                navigate((item as any).route);
+              } else if ((item as any).modal) {
+                openModal((item as any).modal);
+              }
+            }}
+            className="flex items-center gap-1.5 rounded transition-colors flex-shrink-0"
+            style={{
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#555555',
+              backgroundColor: '#f5f5f5',
+              border: '1px solid #e0e0e0',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e8e8e8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f5f5f5'; }}
+          >
+            <Icon size={14} />
+            <span className="hidden md:inline">{item.label}</span>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---- Play Input Section ----
 function PlayInputSection({
   jugada,
@@ -199,6 +417,8 @@ function PlayInputSection({
   totalPlays,
   totalAmount,
   recentTickets,
+  selectedClient,
+  onSelectClient,
 }: {
   jugada: string;
   onJugadaChange: (v: string) => void;
@@ -211,6 +431,8 @@ function PlayInputSection({
   totalPlays: number;
   totalAmount: number;
   recentTickets: Array<{ ticketNumber: string; totalAmount: number; createdAt: Date }>;
+  selectedClient?: string;
+  onSelectClient?: (clientId: string) => void;
 }) {
   const jugadaRef = useRef<HTMLInputElement>(null);
   const montoRef = useRef<HTMLInputElement>(null);
@@ -263,7 +485,7 @@ function PlayInputSection({
       {/* Input row */}
       <div className="flex items-end gap-3 flex-wrap">
         {/* JUGADA */}
-        <div className="flex flex-col gap-1 flex-1" style={{ minWidth: '180px' }}>
+        <div className="flex flex-col gap-1" style={{ flex: '0 0 35%', minWidth: '130px' }}>
           <label
             className="uppercase font-bold"
             style={{ fontSize: '11px', color: '#555', letterSpacing: '0.5px' }}
@@ -330,7 +552,7 @@ function PlayInputSection({
         </div>
 
         {/* MONTO */}
-        <div className="flex flex-col gap-1" style={{ minWidth: '120px' }}>
+        <div className="flex flex-col gap-1" style={{ flex: '0 0 15%', minWidth: '85px' }}>
           <label
             className="uppercase font-bold"
             style={{ fontSize: '11px', color: '#555', letterSpacing: '0.5px' }}
@@ -365,6 +587,9 @@ function PlayInputSection({
           </div>
         </div>
 
+        {/* Client Selector */}
+        {onSelectClient && <ClientSelector onSelect={onSelectClient} selectedClient={selectedClient || ''} />}
+
         {/* Recent tickets dropdown */}
         <div className="relative">
           <motion.button
@@ -398,7 +623,7 @@ function PlayInputSection({
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
                 className="absolute top-full left-0 mt-1 bg-white rounded shadow-lg overflow-hidden"
-                style={{ zIndex: 50, border: '1px solid #e0e0e0', minWidth: '280px' }}
+                style={{ zIndex: 50, border: '1px solid #e0e0e0', minWidth: '480px' }}
               >
                 {recentTickets.length === 0 ? (
                   <div className="px-4 py-3 text-center" style={{ fontSize: '13px', color: '#999' }}>
@@ -468,9 +693,6 @@ function PlayInputSection({
 
 // ---- Main Dashboard ----
 export default function Dashboard() {
-  // Theme color from selected lottery
-  const { primaryColor, setPrimaryColor } = useThemeContext();
-
   // Plays state with capacity tracking
   const {
     plays,
@@ -489,19 +711,27 @@ export default function Dashboard() {
   // Lottery selection
   const [selectedLotteries, setSelectedLotteries] = useState<string[]>(['florida-pm']);
 
-  // Update theme color when lottery selection changes
-  useEffect(() => {
+  // Vendedor
+  const { activeVendedor } = useVendedores();
+
+  // Modal context
+  const { openModal } = useModalContext();
+
+  // Calculate theme color directly from selected lottery
+  const primaryColor = useMemo(() => {
     if (selectedLotteries.length === 1) {
       const lottery = regularLotteries.find((l) => l.id === selectedLotteries[0]);
-      if (lottery?.color) setPrimaryColor(lottery.color);
+      if (lottery?.color) return lottery.color;
     }
-  }, [selectedLotteries, setPrimaryColor]);
+    return '#5cb85c';
+  }, [selectedLotteries]);
 
   const [multiSelect, setMultiSelect] = useState(false);
 
   // Input state
   const [jugada, setJugada] = useState('');
   const [monto, setMonto] = useState('');
+  const [selectedClient, setSelectedClient] = useState('');
 
   // UI state
   const [toast, setToast] = useState<string | null>(null);
@@ -562,7 +792,7 @@ export default function Dashboard() {
 
     if (added) {
       setJugada('');
-      setMonto('');
+      // monto stays for next play
     }
 
     return added;
@@ -575,7 +805,7 @@ export default function Dashboard() {
       return;
     }
 
-    const ticket = createTicket(plays);
+    const ticket = createTicket(plays, activeVendedor?.name || 'Vendedor');
     if (ticket) {
       showToast(`Ticket creado: ${ticket.ticketNumber}`);
       clearPlays();
@@ -628,6 +858,10 @@ export default function Dashboard() {
         setJugada('');
         setMonto('');
         setHelpOpen(false);
+      }
+      if (e.key === '-' || e.key === 'Minus') {
+        e.preventDefault();
+        handleCreateTicket();
       }
     };
     window.addEventListener('keydown', handler);
@@ -682,6 +916,9 @@ export default function Dashboard() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Quick Access Bar */}
+        <QuickAccessBar openModal={openModal} />
 
         {/* Section 1: Lottery Selector Bar */}
         <LotterySelector
@@ -746,8 +983,8 @@ export default function Dashboard() {
             </AnimatePresence>
           </div>
 
-          {/* PLAYS button */}
-          <PlaysButton />
+          {/* Duplicar dropdown */}
+          <DuplicarDropdown />
         </motion.div>
 
         {/* Section 3: Play Input + Counters */}
@@ -763,6 +1000,8 @@ export default function Dashboard() {
           recentTickets={recentTickets}
           totalPlays={totalPlays}
           totalAmount={totalAmount}
+          selectedClient={selectedClient}
+          onSelectClient={setSelectedClient}
         />
 
         {/* Section 4: 4-Column Game Tables Grid */}

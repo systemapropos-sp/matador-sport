@@ -102,7 +102,7 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6, t
       </div>
 
       {/* Body */}
-      <div style={{ backgroundColor: '#EEEEEE', flex: 1, minHeight: '280px' }}>
+      <div style={{ backgroundColor: '#E0E0E0', flex: 1, minHeight: '280px' }}>
         <AnimatePresence mode="popLayout">
           {plays.map((play, index) => (
             <motion.div
@@ -117,7 +117,7 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6, t
                 gridTemplateColumns: '1fr 1.2fr 0.8fr 32px',
                 height: '40px',
                 borderBottom: '1px solid #d0d0d0',
-                backgroundColor: index % 2 === 1 ? '#E0E0E0' : '#EEEEEE',
+                backgroundColor: index % 2 === 1 ? '#D0D0D0' : '#E0E0E0',
                 padding: '0 6px',
                 transition: 'background-color 0.15s ease',
               }}
@@ -125,7 +125,7 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6, t
                 e.currentTarget.style.backgroundColor = '#BDBDBD';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = index % 2 === 1 ? '#E0E0E0' : '#EEEEEE';
+                e.currentTarget.style.backgroundColor = index % 2 === 1 ? '#D0D0D0' : '#E0E0E0';
               }}
               layout
             >
@@ -164,7 +164,7 @@ export default function GameTable({ title, plays, onDeletePlay, emptyRows = 6, t
                 gridTemplateColumns: '1fr 1.2fr 0.8fr 32px',
                 height: '40px',
                 borderBottom: '1px dashed #cccccc',
-                backgroundColor: (plays.length + i) % 2 === 1 ? '#E0E0E0' : '#EEEEEE',
+                backgroundColor: (plays.length + i) % 2 === 1 ? '#D0D0D0' : '#E0E0E0',
                 padding: '0 6px',
               }}
             >
