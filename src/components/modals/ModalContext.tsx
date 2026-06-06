@@ -11,6 +11,9 @@ export type ModalType =
   | 'duplicateTicket'
   | 'duplicatePlays'
   | 'pagar'
+  | 'printTicket'
+  | 'shareTicket'
+  | 'emailReport'
   | null;
 
 export interface ModalState {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,7 +10,6 @@ import {
 import { format } from 'date-fns';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableHeader,
@@ -20,6 +19,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { formatCurrencyLong } from '@/lib/utils';
+import { lotteries } from '@/data/lotteries';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -32,67 +32,18 @@ interface MonitoredPlay {
   time: string;
   vendor: string;
   lottery: string;
+  lotteryId: string;
   jugada: string;
   tipo: string;
   monto: number;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Lottery groups (25 sorteos grouped by time period)                 */
-/* ------------------------------------------------------------------ */
-
-interface LotteryOption {
-  id: string;
-  label: string;
-  period: 'AM' | 'PM' | 'Evening' | 'Night';
-}
-
-const lotteryOptions: LotteryOption[] = [
-  // AM (Morning)
-  { id: 'anguila-10am', label: 'Anguila 10AM', period: 'AM' },
-  { id: 'la-primera', label: 'LA PRIMERA', period: 'AM' },
-  { id: 'lotedom', label: 'LOTEDOM', period: 'AM' },
-  { id: 'la-suerte', label: 'LA SUERTE', period: 'AM' },
-  { id: 'king-lottery-am', label: 'King Lottery AM', period: 'AM' },
-  { id: 'quiniela-real', label: 'QUINIELA REAL', period: 'AM' },
-  // PM (Afternoon)
-  { id: 'anguila-1pm', label: 'Anguila 1PM', period: 'PM' },
-  { id: 'super-pale-real-ganamas', label: 'SUPER PALE REAL-GANA MAS', period: 'PM' },
-  { id: 'gana-mas', label: 'GANA MAS', period: 'PM' },
-  { id: 'super-pale-ny-ganamas', label: 'SUPER PALE NY-GANA MAS', period: 'PM' },
-  { id: 'florida-am', label: 'FLORIDA AM', period: 'PM' },
-  { id: 'newyork-am', label: 'NEW YORK AM', period: 'PM' },
-  // Evening
-  { id: 'anguila-6pm', label: 'Anguila 6PM', period: 'Evening' },
-  { id: 'la-suerte-6pm', label: 'LA SUERTE 6PM', period: 'Evening' },
-  { id: 'king-lottery-pm', label: 'King Lottery PM', period: 'Evening' },
-  { id: 'loteca', label: 'LOTECA', period: 'Evening' },
-  { id: 'la-primera-7pm', label: 'LA PRIMERA 7PM', period: 'Evening' },
-  { id: 'nacional', label: 'NACIONAL', period: 'Evening' },
-  { id: 'quiniela-pale', label: 'QUINIELA PALE', period: 'Evening' },
-  { id: 'super-pale-nacional-qp', label: 'SUPER PALE NACIONAL-QP', period: 'Evening' },
-  // Night
-  { id: 'super-pale-ny-nacional', label: 'SUPER PALE NY-NACIONAL', period: 'Night' },
-  { id: 'anguila-9pm', label: 'Anguila 9PM', period: 'Night' },
-  { id: 'florida-pm', label: 'FLORIDA PM', period: 'Night' },
-  { id: 'newyork-pm', label: 'NEW YORK PM', period: 'Night' },
-];
-
-const allLotteryIds = lotteryOptions.map((l) => l.id);
-
-/* Period display labels */
-const periodLabels: Record<string, string> = {
-  AM: 'Manana (AM)',
-  PM: 'Tarde (PM)',
-  Evening: 'Noche (Evening)',
-  Night: 'Noche (Night)',
-};
-
-/* ------------------------------------------------------------------ */
 /*  localStorage helpers                                               */
 /* ------------------------------------------------------------------ */
 
 const MONITOR_STORAGE_KEY = 'matador_monitor_plays';
+const TICKETS_STORAGE_KEY = 'matador_tickets';
 
 function readMonitorData(): MonitoredPlay[] {
   try {
@@ -108,6 +59,48 @@ function readMonitorData(): MonitoredPlay[] {
   }
 }
 
+function buildFromTickets(): MonitoredPlay[] {
+  try {
+    const raw = localStorage.getItem(TICKETS_STORAGE_KEY);
+    if (!raw) return [];
+    const tickets = JSON.parse(raw);
+    const plays: MonitoredPlay[] = [];
+    tickets.forEach((t: any) => {
+      if (t.plays && Array.isArray(t.plays)) {
+        t.plays.forEach((p: any, idx: number) => {
+          plays.push({
+            id: `${t.id || 'tk'}-p${idx}-${Date.now()}`,
+            ticketNumber: t.ticketNumber || 'N/A',
+            date: t.createdAt ? t.createdAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd'),
+            time: t.createdAt ? t.createdAt.split('T')[1]?.slice(0, 5) || '--:--' : '--:--',
+            vendor: t.vendorName || 'mr01',
+            lottery: p.lotteryName || 'Unknown',
+            lotteryId: p.lotteryId || '',
+            jugada: p.numbers || '',
+            tipo: p.type || 'directo',
+            monto: Number(p.amount) || 0,
+          });
+        });
+      }
+    });
+    return plays;
+  } catch {
+    return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Play type helpers                                                  */
+/* ------------------------------------------------------------------ */
+
+function normalizeType(tipo: string): 'Directo' | 'Pale' | 'Tripleta' | 'Otro' {
+  const t = tipo.toLowerCase().trim();
+  if (t === 'directo') return 'Directo';
+  if (t === 'pale') return 'Pale';
+  if (t === 'tripleta') return 'Tripleta';
+  return 'Otro';
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main page component                                                */
 /* ------------------------------------------------------------------ */
@@ -117,56 +110,50 @@ export default function PlayMonitor() {
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const [selectedDate, setSelectedDate] = useState(today);
-  const [selectedLotteries, setSelectedLotteries] = useState<string[]>(allLotteryIds);
+  const [selectedLotteryId, setSelectedLotteryId] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [plays, setPlays] = useState<MonitoredPlay[]>([]);
   const [_hasRefreshed, setHasRefreshed] = useState(false);
 
   /* Load data on mount */
   useEffect(() => {
-    const data = readMonitorData();
-    if (data.length > 0) {
-      setPlays(data);
+    const monitorData = readMonitorData();
+    const ticketData = buildFromTickets();
+    const allData = [...monitorData, ...ticketData];
+    if (allData.length > 0) {
+      setPlays(allData);
       setHasRefreshed(true);
     }
   }, []);
 
-  /* Filter plays by date and selected lotteries */
-  const filtered = plays.filter((p) => {
-    const dateMatch = !selectedDate || p.date === selectedDate;
-    const lotteryMatch = selectedLotteries.includes(p.lottery);
-    return dateMatch && lotteryMatch;
-  });
-
-  /* Checkbox handlers */
-  const toggleLottery = useCallback((id: string) => {
-    setSelectedLotteries((prev) => {
-      if (prev.includes(id)) {
-        // Don't allow unchecking the last one
-        if (prev.length === 1) return prev;
-        return prev.filter((x) => x !== id);
-      }
-      return [...prev, id];
+  /* Filter plays by date and selected lottery */
+  const filtered = useMemo(() => {
+    return plays.filter((p) => {
+      const dateMatch = !selectedDate || p.date === selectedDate;
+      const lotteryMatch = selectedLotteryId === 'all' || p.lotteryId === selectedLotteryId;
+      return dateMatch && lotteryMatch;
     });
-  }, []);
+  }, [plays, selectedDate, selectedLotteryId]);
 
-  const selectAll = useCallback(() => {
-    setSelectedLotteries(allLotteryIds);
-  }, []);
+  /* Group by play type */
+  const directoPlays = filtered.filter((p) => normalizeType(p.tipo) === 'Directo');
+  const palePlays = filtered.filter((p) => normalizeType(p.tipo) === 'Pale');
+  const tripletaPlays = filtered.filter((p) => normalizeType(p.tipo) === 'Tripleta');
 
-  const deselectAll = useCallback(() => {
-    // Keep at least one
-    setSelectedLotteries([allLotteryIds[0]]);
-  }, []);
-
-  void selectedLotteries; // avoid unused warning for selection logic
+  /* Selected lottery name */
+  const selectedLotteryName = useMemo(() => {
+    if (selectedLotteryId === 'all') return 'todos los sorteos';
+    const l = lotteries.find((lot) => lot.id === selectedLotteryId);
+    return l?.name || selectedLotteryId;
+  }, [selectedLotteryId]);
 
   /* Actions */
   const handleRefresh = useCallback(() => {
     setLoading(true);
     setTimeout(() => {
-      const data = readMonitorData();
-      setPlays(data);
+      const monitorData = readMonitorData();
+      const ticketData = buildFromTickets();
+      setPlays([...monitorData, ...ticketData]);
       setHasRefreshed(true);
       setLoading(false);
     }, 600);
@@ -194,17 +181,141 @@ export default function PlayMonitor() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
   };
 
-  /* Group lotteries by period */
-  const grouped = lotteryOptions.reduce<Record<string, LotteryOption[]>>(
-    (acc, opt) => {
-      if (!acc[opt.period]) acc[opt.period] = [];
-      acc[opt.period].push(opt);
-      return acc;
-    },
-    {}
-  );
+  /* Render table for a play type */
+  const renderTable = (
+    title: string,
+    data: MonitoredPlay[],
+    color: string
+  ) => {
+    if (data.length === 0) return null;
 
-  const periods = ['AM', 'PM', 'Evening', 'Night'];
+    const total = data.reduce((sum, p) => sum + p.monto, 0);
+
+    return (
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="mb-6"
+        style={{
+          border: '1px solid #e0e0e0',
+          borderRadius: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Table header with color */}
+        <div
+          style={{
+            backgroundColor: color,
+            padding: '10px 16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#ffffff',
+            }}
+          >
+            {title}
+          </span>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.9)' }}>
+            {data.length} jugada{data.length !== 1 ? 's' : ''} — {formatCurrencyLong(total)}
+          </span>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow style={{ backgroundColor: '#f5f5f5' }}>
+              {['JUGADA', 'IMPORTE'].map((col) => (
+                <TableHead
+                  key={col}
+                  style={{
+                    fontSize: '12px',
+                    textTransform: 'uppercase',
+                    color: '#555555',
+                    fontWeight: 600,
+                    padding: '10px 12px',
+                  }}
+                >
+                  {col}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((play, index) => (
+              <motion.tr
+                key={play.id}
+                variants={rowVariants}
+                style={{
+                  backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                  borderBottom: '1px solid #eeeeee',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f0f0f0';
+                  e.currentTarget.style.transition = 'background-color 0.15s';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+                }}
+              >
+                <TableCell
+                  style={{
+                    fontSize: '13px',
+                    color: '#333333',
+                    padding: '8px 12px',
+                  }}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                      {play.jugada}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#777777' }}>
+                      {play.lottery} — {play.ticketNumber}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell
+                  style={{
+                    fontSize: '13px',
+                    color: '#333333',
+                    padding: '8px 12px',
+                    textAlign: 'right',
+                    fontWeight: 600,
+                  }}
+                >
+                  {formatCurrencyLong(play.monto)}
+                </TableCell>
+              </motion.tr>
+            ))}
+          </TableBody>
+        </Table>
+
+        {/* Subtotal */}
+        <div
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#f5f5f5',
+            borderTop: '1px solid #e0e0e0',
+            fontSize: '12px',
+            color: '#555555',
+            fontWeight: 500,
+            textAlign: 'right',
+          }}
+        >
+          Subtotal {title}:{' '}
+          <strong>{formatCurrencyLong(total)}</strong>
+        </div>
+      </motion.div>
+    );
+  };
+
+  const grandTotal = filtered.reduce((sum, p) => sum + p.monto, 0);
 
   return (
     <Layout>
@@ -231,7 +342,7 @@ export default function PlayMonitor() {
           </h1>
         </motion.div>
 
-        {/* ====== DATE FILTER ====== */}
+        {/* ====== DATE + SORTEO FILTER ====== */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -240,8 +351,13 @@ export default function PlayMonitor() {
             background: '#ffffff',
             padding: '16px',
             borderBottom: '1px solid #e0e0e0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '16px',
+            alignItems: 'flex-end',
           }}
         >
+          {/* Date picker */}
           <div className="flex flex-col gap-1" style={{ width: '200px' }}>
             <label
               style={{
@@ -272,142 +388,45 @@ export default function PlayMonitor() {
               }}
             />
           </div>
-        </motion.div>
 
-        {/* ====== SORTEOS FILTER (Fieldset) ====== */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: 0.2 }}
-          style={{
-            margin: '0 16px 16px',
-            marginTop: '16px',
-          }}
-        >
-          <fieldset
-            style={{
-              background: '#fafafa',
-              padding: '16px',
-              border: '1px solid #e0e0e0',
-              borderRadius: '6px',
-              position: 'relative',
-            }}
-          >
-            {/* Legend */}
-            <legend
+          {/* Sorteo dropdown */}
+          <div className="flex flex-col gap-1" style={{ width: '260px' }}>
+            <label
               style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#555555',
-                padding: '0 8px',
-                background: '#fafafa',
-              }}
-            >
-              Sorteos
-            </legend>
-
-            {/* Select all / deselect */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '16px',
-                marginBottom: '12px',
                 fontSize: '12px',
+                fontWeight: 500,
+                color: '#555555',
               }}
             >
-              <button
-                onClick={selectAll}
-                className="text-[#337ab7] hover:underline"
-                style={{ fontSize: '12px', fontWeight: 500 }}
-              >
-                Seleccionar todos
-              </button>
-              <button
-                onClick={deselectAll}
-                className="text-[#777777] hover:underline"
-                style={{ fontSize: '12px', fontWeight: 500 }}
-              >
-                Deseleccionar todos
-              </button>
-            </div>
-
-            {/* Period groups */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {periods.map((period) => {
-                const items = grouped[period];
-                if (!items || items.length === 0) return null;
-                return (
-                  <div key={period}>
-                    {/* Period label */}
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#777777',
-                        textTransform: 'uppercase',
-                        marginBottom: '8px',
-                        letterSpacing: '0.5px',
-                      }}
-                    >
-                      {periodLabels[period]}
-                    </div>
-                    {/* Checkbox grid */}
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns:
-                          'repeat(auto-fill, minmax(200px, 1fr))',
-                        gap: '10px 16px',
-                      }}
-                    >
-                      {items.map((lottery) => {
-                        const checked = selectedLotteries.includes(lottery.id);
-                        return (
-                          <motion.div
-                            key={lottery.id}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.2 }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                            }}
-                          >
-                            <Checkbox
-                              id={`lottery-${lottery.id}`}
-                              checked={checked}
-                              onCheckedChange={() => toggleLottery(lottery.id)}
-                              style={{
-                                width: '16px',
-                                height: '16px',
-                                borderRadius: '3px',
-                                border: checked
-                                  ? '2px solid #5cb85c'
-                                  : '2px solid #cccccc',
-                                backgroundColor: checked ? '#5cb85c' : 'transparent',
-                              }}
-                            />
-                            <label
-                              htmlFor={`lottery-${lottery.id}`}
-                              style={{
-                                fontSize: '13px',
-                                color: '#333333',
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                              }}
-                            >
-                              {lottery.label}
-                            </label>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </fieldset>
+              Sorteo
+            </label>
+            <select
+              value={selectedLotteryId}
+              onChange={(e) => setSelectedLotteryId(e.target.value)}
+              style={{
+                height: '40px',
+                padding: '0 12px',
+                border: '1px solid #cccccc',
+                borderRadius: '4px',
+                fontSize: '14px',
+                outline: 'none',
+                backgroundColor: '#ffffff',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#337ab7';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#cccccc';
+              }}
+            >
+              <option value="all">Todos los sorteos</option>
+              {lotteries.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} ({l.schedule})
+                </option>
+              ))}
+            </select>
+          </div>
         </motion.div>
 
         {/* ====== ACTION BUTTONS ====== */}
@@ -474,7 +493,7 @@ export default function PlayMonitor() {
             }}
           >
             <Printer size={14} className="mr-1.5" />
-            print
+            Print
           </Button>
 
           {/* Volver a punto de venta */}
@@ -501,11 +520,30 @@ export default function PlayMonitor() {
           </Button>
         </motion.div>
 
-        {/* ====== RESULTS AREA ====== */}
+        {/* ====== TOTAL LINE ====== */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.3 }}
+          style={{
+            padding: '14px 16px',
+            backgroundColor: '#f9f9f9',
+            borderBottom: '1px solid #e0e0e0',
+          }}
+        >
+          <span style={{ fontSize: '14px', fontWeight: 600, color: '#333333' }}>
+            Total para sorteo {selectedLotteryName}:{' '}
+            <span style={{ fontSize: '18px', fontWeight: 700 }}>
+              {formatCurrencyLong(grandTotal)}
+            </span>
+          </span>
+        </motion.div>
+
+        {/* ====== RESULTS AREA ====== */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.35 }}
           style={{
             background: '#ffffff',
             padding: '24px 16px',
@@ -558,178 +596,31 @@ export default function PlayMonitor() {
                 No hay entradas para el sorteo y la fecha elegidos
               </motion.div>
             ) : (
-              /* ---- Data table ---- */
-              <motion.div
-                key="data"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                style={{
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                }}
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow
-                      style={{
-                        backgroundColor: '#f5f5f5',
-                      }}
-                    >
-                      {[
-                        '#',
-                        'Ticket',
-                        'Fecha',
-                        'Usuario',
-                        'Sorteo',
-                        'Jugada',
-                        'Tipo',
-                        'Monto',
-                      ].map((col) => (
-                        <TableHead
-                          key={col}
-                          style={{
-                            fontSize: '12px',
-                            textTransform: 'uppercase',
-                            color: '#555555',
-                            fontWeight: 600,
-                            padding: '12px',
-                          }}
-                        >
-                          {col}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((play, index) => (
-                      <motion.tr
-                        key={play.id}
-                        variants={rowVariants}
-                        style={{
-                          backgroundColor:
-                            index % 2 === 0 ? '#ffffff' : '#f9f9f9',
-                          borderBottom: '1px solid #eeeeee',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f0f0f0';
-                          e.currentTarget.style.transition =
-                            'background-color 0.15s';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            index % 2 === 0 ? '#ffffff' : '#f9f9f9';
-                        }}
-                      >
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {index + 1}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.ticketNumber}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.date} {play.time}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.vendor}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                          }}
-                        >
-                          {play.lottery}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                            fontWeight: 600,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {play.jugada}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                            textTransform: 'capitalize',
-                          }}
-                        >
-                          {play.tipo}
-                        </TableCell>
-                        <TableCell
-                          style={{
-                            fontSize: '13px',
-                            color: '#333333',
-                            padding: '10px 12px',
-                            textAlign: 'right',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {formatCurrencyLong(play.monto)}
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </TableBody>
-                </Table>
+              /* ---- Data tables ---- */
+              <div>
+                {renderTable('Directo', directoPlays, '#5cb85c')}
+                {renderTable('Pale', palePlays, '#337ab7')}
+                {renderTable('Tripleta', tripletaPlays, '#f0ad4e')}
 
-                {/* Summary footer */}
+                {/* Grand total */}
                 <div
                   style={{
                     padding: '12px 16px',
-                    backgroundColor: '#f5f5f5',
-                    borderTop: '1px solid #e0e0e0',
-                    fontSize: '13px',
-                    color: '#555555',
-                    fontWeight: 500,
+                    backgroundColor: '#333333',
+                    borderRadius: '4px',
                     display: 'flex',
                     justifyContent: 'space-between',
+                    alignItems: 'center',
                   }}
                 >
-                  <span>
-                    Total jugadas: <strong>{filtered.length}</strong>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>
+                    Total general ({filtered.length} jugadas)
                   </span>
-                  <span>
-                    Monto total:{" "}
-                    <strong>
-                      {formatCurrencyLong(
-                        filtered.reduce((sum, p) => sum + p.monto, 0)
-                      )}
-                    </strong>
+                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
+                    {formatCurrencyLong(grandTotal)}
                   </span>
                 </div>
-              </motion.div>
+              </div>
             )}
           </AnimatePresence>
         </motion.div>

@@ -8,6 +8,9 @@ import PendingPaymentsModal from './PendingPaymentsModal';
 import DuplicateTicketModal from './DuplicateTicketModal';
 import DuplicatePlaysModal from './DuplicatePlaysModal';
 import PagarModal from './PagarModal';
+import PrintTicketModal from './PrintTicketModal';
+import ShareTicketModal from './ShareTicketModal';
+import EmailReportModal from './EmailReportModal';
 
 export default function ModalManager() {
   const { modalState, closeModal } = useModalContext();
@@ -31,6 +34,34 @@ export default function ModalManager() {
       return <DuplicatePlaysModal open={true} onClose={closeModal} />;
     case 'pagar':
       return <PagarModal open={true} onClose={closeModal} />;
+    case 'printTicket':
+      return (
+        <PrintTicketModal
+          open={true}
+          onClose={closeModal}
+          ticket={modalState.props?.ticket as import('@/types').Ticket | undefined}
+        />
+      );
+    case 'shareTicket':
+      return (
+        <ShareTicketModal
+          open={true}
+          onClose={closeModal}
+          ticket={modalState.props?.ticket as import('@/types').Ticket | undefined}
+        />
+      );
+    case 'emailReport':
+      return (
+        <EmailReportModal
+          open={true}
+          onClose={closeModal}
+          lotteryName={(modalState.props?.lotteryName as string) || 'General'}
+          totalSales={(modalState.props?.totalSales as number) || 0}
+          totalWinners={(modalState.props?.totalWinners as number) || 0}
+          totalPending={(modalState.props?.totalPending as number) || 0}
+          netAmount={(modalState.props?.netAmount as number) || 0}
+        />
+      );
     default:
       return null;
   }

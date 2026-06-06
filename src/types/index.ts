@@ -10,6 +10,7 @@ export interface Lottery {
   schedule: string;
   type: LotteryType;
   icon?: string;
+  color?: string;
 }
 
 export interface Play {

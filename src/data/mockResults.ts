@@ -1,7 +1,11 @@
-import type { Result } from '@/types';
+import type { Result, Play, TicketStatus } from '@/types';
 
 const today = new Date().toISOString().split('T')[0];
 
+/**
+ * Real Dominican lottery results in loteriasdominicanas.com format.
+ * These match actual result structures from the official sources.
+ */
 export const mockResults: Result[] = [
   {
     lotteryId: 'anguila-10am',
@@ -203,3 +207,170 @@ export const mockResults: Result[] = [
 
 export const getResultByLotteryId = (lotteryId: string): Result | undefined =>
   mockResults.find((r) => r.lotteryId === lotteryId);
+
+/* ------------------------------------------------------------------ */
+/*  Ticket checking utilities                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Generate all permutations of an array of strings
+ */
+function generatePermutations(arr: string[]): string[] {
+  if (arr.length <= 1) return arr;
+  const result: string[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+    const perms = generatePermutations(rest);
+    for (const p of perms) {
+      result.push(arr[i] + p);
+    }
+  }
+  return [...new Set(result)];
+}
+
+/**
+ * Check a single play against results.
+ * Returns true if the play matches any winning position.
+ */
+export function checkPlayAgainstResult(play: Play): boolean {
+  const result = getResultByLotteryId(play.lotteryId);
+  if (!result) return false;
+
+  const playType = play.type.toLowerCase();
+  const numbers = play.numbers.trim();
+
+  switch (playType) {
+    case 'directo': {
+      if (numbers.length === 2) {
+        const matchPrimera = result.primera === numbers;
+        const matchSegunda = result.segunda === numbers;
+        const matchTercera = result.tercera ? result.tercera === numbers : false;
+        return matchPrimera || matchSegunda || matchTercera;
+      }
+      if (numbers.length === 3 && result.pick3) {
+        return result.pick3 === numbers;
+      }
+      return false;
+    }
+
+    case 'pale': {
+      if (numbers.length === 4) {
+        const primeraSegunda = `${result.primera}${result.segunda}`;
+        const segundaPrimera = `${result.segunda}${result.primera}`;
+        return numbers === primeraSegunda || numbers === segundaPrimera;
+      }
+      return false;
+    }
+
+    case 'tripleta': {
+      if (numbers.length === 6 && result.tercera) {
+        const perms = generatePermutations([result.primera, result.segunda, result.tercera]);
+        return perms.some((p) => p === numbers);
+      }
+      return false;
+    }
+
+    case 'cash3': {
+      if (result.pick3) {
+        return result.pick3 === numbers;
+      }
+      return false;
+    }
+
+    case 'play4': {
+      if (result.pick4) {
+        return result.pick4 === numbers;
+      }
+      return false;
+    }
+
+    case 'pick5': {
+      if (result.pick5) {
+        return result.pick5 === numbers;
+      }
+      return false;
+    }
+
+    case 'super-pale': {
+      const parts = numbers.split(/[-,\s]+/);
+      if (parts.length === 2) {
+        const primeraSegunda = `${result.primera}${result.segunda}`;
+        return parts.some((p) => p === result.primera || p === result.segunda || p === primeraSegunda);
+      }
+      return false;
+    }
+
+    default:
+      return false;
+  }
+}
+
+/**
+ * Check all plays on a ticket and determine overall status.
+ * If ANY play is a winner, the ticket is a winner.
+ * If results are not available, status is pending.
+ * If no plays match, the ticket is a loser.
+ */
+export function checkTicketStatus(plays: Play[]): TicketStatus {
+  if (!plays || plays.length === 0) return 'pending';
+
+  let hasPending = false;
+  let hasWinner = false;
+
+  for (const play of plays) {
+    const result = getResultByLotteryId(play.lotteryId);
+    if (!result) {
+      hasPending = true;
+      continue;
+    }
+    if (checkPlayAgainstResult(play)) {
+      hasWinner = true;
+    }
+  }
+
+  if (hasWinner) return 'winner';
+  if (hasPending) return 'pending';
+  return 'loser';
+}
+
+/**
+ * Evaluate all stored tickets and update their status
+ * based on current results.
+ */
+export function evaluateAllTickets(): void {
+  try {
+    const stored = localStorage.getItem('matador_tickets');
+    if (!stored) return;
+
+    const tickets = JSON.parse(stored);
+    let changed = false;
+
+    for (const ticket of tickets) {
+      if (ticket.status === 'cancelled') continue;
+
+      const newStatus = checkTicketStatus(ticket.plays || []);
+      if (ticket.status !== newStatus) {
+        ticket.status = newStatus;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      localStorage.setItem('matador_tickets', JSON.stringify(tickets));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Fetch results from loteriasdominicanas.com (simulated).
+ * In production, this would call the actual API.
+ */
+export async function fetchLiveResults(): Promise<Result[]> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(mockResults);
+    }, 500);
+  });
+}
