@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   Wallet,
@@ -32,7 +33,8 @@ const shortcuts: ShortcutItem[] = [
   { label: 'Configuracion', icon: Settings, modalType: 'config' },
   { label: 'Duplicar', icon: Copy, modalType: 'duplicateTicket' },
   { label: 'Generador', icon: Shuffle, modalType: 'randomGenerator' },
-  { label: 'Ayuda', icon: HelpCircle, action: 'toast', toastMessage: 'Ayuda' },
+  { label: 'Ayuda', icon: HelpCircle, modalType: 'help' },
+  { label: 'Pagar', icon: Wallet, modalType: 'pagar' },
 ];
 
 const backdropVariants = {
@@ -50,6 +52,7 @@ const panelVariants = {
 export default function ShortcutsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const { openModal } = useModalContext();
+  const navigate = useNavigate();
 
   const handleShortcut = (item: ShortcutItem) => {
     setIsOpen(false);
@@ -58,7 +61,7 @@ export default function ShortcutsPanel() {
       if (item.modalType) {
         openModal(item.modalType);
       } else if (item.action === 'navigate' && item.route) {
-        window.location.href = item.route;
+        navigate(item.route);
       } else if (item.action === 'print') {
         window.print();
       } else if (item.action === 'toast' && item.toastMessage) {

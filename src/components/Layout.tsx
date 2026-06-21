@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import Navbar from './Navbar';
 import SideMenu from './SideMenu';
 import ResultsPanel from './ResultsPanel';
-import { ModalProvider, ModalManager, useModalContext } from './modals';
+import { ModalManager, useModalContext } from './modals';
 import { ThemeProvider } from '@/context/ThemeContext';
 
 interface LayoutProps {
@@ -25,6 +25,7 @@ function LayoutInner({ children, onMenuToast }: LayoutProps) {
         resultsOpen={resultsOpen}
         onSettings={() => openModal('config')}
         onTicketMonitor={() => openModal('ticketMonitor')}
+        onOpenModal={openModal}
       />
       <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} onToast={onMenuToast} />
       <AnimatePresence>
@@ -36,12 +37,12 @@ function LayoutInner({ children, onMenuToast }: LayoutProps) {
   );
 }
 
+// ModalProvider is already provided by App.tsx — do NOT nest another one here.
+// LayoutInner uses useModalContext() which resolves to App.tsx's ModalProvider.
 export default function Layout({ children, onMenuToast }: LayoutProps) {
   return (
     <ThemeProvider>
-      <ModalProvider>
-        <LayoutInner onMenuToast={onMenuToast}>{children}</LayoutInner>
-      </ModalProvider>
+      <LayoutInner onMenuToast={onMenuToast}>{children}</LayoutInner>
     </ThemeProvider>
   );
 }

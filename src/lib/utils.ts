@@ -7,6 +7,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Get today's date as YYYY-MM-DD in LOCAL time (not UTC).
+ * Fixes the UTC+0 date bug where after 8 PM EST the date shows as tomorrow.
+ */
+export function localDateStr(date?: Date): string {
+  const d = date ?? new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Detect play type from digit count and number format
  */
 export function detectPlayType(digits: string): PlayType {

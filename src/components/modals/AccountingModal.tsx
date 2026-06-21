@@ -12,11 +12,32 @@ import {
   Check,
   Calendar,
   X,
+  ChevronDown,
+  ShieldCheck,
+  User,
 } from 'lucide-react';
 import ModalWrapper from './ModalWrapper';
 import { useModalContext } from './ModalContext';
 import { useAccounting } from '@/hooks/useAccounting';
 import type { FilterPeriod } from '@/hooks/useAccounting';
+
+// ── Simple ledger entry stored in localStorage ───────────────────────────────
+interface LedgerEntry {
+  id: string;
+  date: string;
+  tipo: string;       // 'gasto' | 'abono' | 'ingreso' | 'pago'
+  monto: number;
+  descripcion: string;
+}
+
+function loadLedger(key: string): LedgerEntry[] {
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+function saveLedger(key: string, data: LedgerEntry[]) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+const ADMIN_LEDGER_KEY   = 'nmv_admin_ledger';
+const VENDOR_LEDGER_KEY  = 'nmv_vendor_ledger';
 
 const typeConfig: Record<string, { label: string; color: string; bg: string }> = {
   generado: { label: 'Generado', color: '#2E7D32', bg: '#E8F5E9' },
@@ -87,6 +108,45 @@ export default function AccountingModal() {
   const [rentaAmount, setRentaAmount] = useState('');
   const [rentaDesc, setRentaDesc] = useState('');
   const [toast, setToast] = useState('');
+
+  // ── Admin $ ledger ────────────────────────────────────────────────────────
+  const [adminEntries, setAdminEntries] = useState<LedgerEntry[]>(() => loadLedger(ADMIN_LEDGER_KEY));
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [adminTipo, setAdminTipo] = useState('abono');
+  const [adminMonto, setAdminMonto] = useState('');
+  const [adminDesc, setAdminDesc] = useState('');
+
+  // ── Vendedor $ ledger ─────────────────────────────────────────────────────
+  const [vendorEntries, setVendorEntries] = useState<LedgerEntry[]>(() => loadLedger(VENDOR_LEDGER_KEY));
+  const [vendorOpen, setVendorOpen] = useState(false);
+  const [showAddVendor, setShowAddVendor] = useState(false);
+  const [vendorTipo, setVendorTipo] = useState('gasto');
+  const [vendorMonto, setVendorMonto] = useState('');
+  const [vendorDesc, setVendorDesc] = useState('');
+
+  const addAdminEntry = () => {
+    const monto = parseFloat(adminMonto);
+    if (!monto || monto <= 0) { setToast('Monto inválido'); setTimeout(() => setToast(''), 2000); return; }
+    const entry: LedgerEntry = { id: Date.now().toString(), date: new Date().toISOString(), tipo: adminTipo, monto, descripcion: adminDesc || adminTipo };
+    const updated = [entry, ...adminEntries];
+    setAdminEntries(updated); saveLedger(ADMIN_LEDGER_KEY, updated);
+    setAdminMonto(''); setAdminDesc(''); setShowAddAdmin(false);
+    setToast('Entrada Admin registrada!'); setTimeout(() => setToast(''), 2000);
+  };
+
+  const addVendorEntry = () => {
+    const monto = parseFloat(vendorMonto);
+    if (!monto || monto <= 0) { setToast('Monto inválido'); setTimeout(() => setToast(''), 2000); return; }
+    const entry: LedgerEntry = { id: Date.now().toString(), date: new Date().toISOString(), tipo: vendorTipo, monto, descripcion: vendorDesc || vendorTipo };
+    const updated = [entry, ...vendorEntries];
+    setVendorEntries(updated); saveLedger(VENDOR_LEDGER_KEY, updated);
+    setVendorMonto(''); setVendorDesc(''); setShowAddVendor(false);
+    setToast('Entrada Vendedor registrada!'); setTimeout(() => setToast(''), 2000);
+  };
+
+  const adminTotal = adminEntries.reduce((s, e) => s + (e.tipo === 'gasto' || e.tipo === 'pago' ? -e.monto : e.monto), 0);
+  const vendorTotal = vendorEntries.reduce((s, e) => s + (e.tipo === 'gasto' || e.tipo === 'pago' ? -e.monto : e.monto), 0);
 
   const totals = useMemo(
     () => getTotals(filter, startDate || undefined, endDate || undefined),
@@ -225,9 +285,9 @@ export default function AccountingModal() {
         />
         <SummaryCard
           label="Neto"
-          value={formatCurrency(totals.neto)}
-          bg="#ECEFF1"
-          textColor="#37474F"
+          value={`${totals.neto >= 0 ? '+' : '−'}${formatCurrency(Math.abs(totals.neto))}`}
+          bg={totals.neto >= 0 ? '#E8F5E9' : '#FFEBEE'}
+          textColor={totals.neto >= 0 ? '#2E7D32' : '#C62828'}
           icon={<BarChart3 size={16} />}
         />
       </div>
@@ -394,6 +454,153 @@ export default function AccountingModal() {
             </table>
           </div>
         )}
+      </div>
+      {/* ═══ ADMIN $ LEDGER ═══════════════════════════════════════════════ */}
+      <div className="mt-5 rounded-xl overflow-hidden" style={{ border: '1px solid #BBDEFB' }}>
+        <button
+          className="w-full flex items-center justify-between px-4 py-3 font-bold text-sm"
+          style={{ background: 'linear-gradient(135deg,#1565C0,#1976D2)', color:'#fff' }}
+          onClick={() => setAdminOpen(v => !v)}
+        >
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} />
+            ADMIN $ — Gastos / Abonos del Admin
+            <span style={{ background:'rgba(255,255,255,0.2)', borderRadius:10, padding:'1px 8px', fontSize:11, fontWeight:400 }}>
+              {adminEntries.length} entradas · Balance: {adminTotal >= 0 ? '+' : ''}{formatCurrency(adminTotal)}
+            </span>
+          </div>
+          <motion.div animate={{ rotate: adminOpen ? 180 : 0 }} transition={{ duration:0.2 }}>
+            <ChevronDown size={16} />
+          </motion.div>
+        </button>
+        <AnimatePresence>
+          {adminOpen && (
+            <motion.div initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }} transition={{ duration:0.2 }} style={{ overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', background:'#EBF3FF' }}>
+                {/* Add entry form */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <select value={adminTipo} onChange={e => setAdminTipo(e.target.value)}
+                    style={{ height:34, padding:'0 10px', borderRadius:6, border:'1px solid #90CAF9', fontSize:13, outline:'none', background:'#fff' }}>
+                    <option value="abono">Abono</option>
+                    <option value="ingreso">Ingreso</option>
+                    <option value="gasto">Gasto</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                  <input type="number" value={adminMonto} onChange={e => setAdminMonto(e.target.value)} placeholder="Monto"
+                    style={{ height:34, padding:'0 10px', borderRadius:6, border:'1px solid #90CAF9', fontSize:13, outline:'none', width:110 }} />
+                  <input type="text" value={adminDesc} onChange={e => setAdminDesc(e.target.value)} placeholder="Descripción"
+                    style={{ height:34, padding:'0 10px', borderRadius:6, border:'1px solid #90CAF9', fontSize:13, outline:'none', flex:1, minWidth:140 }} />
+                  <button onClick={addAdminEntry}
+                    className="flex items-center gap-1 px-3 rounded-lg text-white font-bold text-sm"
+                    style={{ background:'#1565C0', height:34, cursor:'pointer', border:'none' }}>
+                    <Plus size={14}/> Agregar
+                  </button>
+                </div>
+                {adminEntries.length === 0 ? (
+                  <div style={{ textAlign:'center', padding:'16px 0', color:'#90CAF9', fontSize:13 }}>Sin entradas aún</div>
+                ) : (
+                  <div style={{ maxHeight:200, overflowY:'auto', borderRadius:6, border:'1px solid #BBDEFB' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                      <thead><tr style={{ background:'#BBDEFB' }}>
+                        {['Fecha','Tipo','Monto','Descripción'].map(h=>(
+                          <th key={h} style={{ padding:'6px 10px', textAlign:'left', color:'#1565C0', fontWeight:700, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {adminEntries.map((e,i)=>(
+                          <tr key={e.id} style={{ borderBottom:'1px solid #E3F2FD', background: i%2===0?'#fff':'#f8fbff' }}>
+                            <td style={{ padding:'6px 10px', whiteSpace:'nowrap', color:'#666' }}>{formatDate(e.date)}</td>
+                            <td style={{ padding:'6px 10px' }}>
+                              <span style={{ background: e.tipo==='gasto'||e.tipo==='pago' ? '#FFEBEE' : '#E3F2FD', color: e.tipo==='gasto'||e.tipo==='pago' ? '#C62828' : '#1565C0', padding:'1px 7px', borderRadius:8, fontSize:11, fontWeight:700 }}>{e.tipo}</span>
+                            </td>
+                            <td style={{ padding:'6px 10px', fontWeight:700, color: e.tipo==='gasto'||e.tipo==='pago' ? '#C62828' : '#1565C0', textAlign:'right', whiteSpace:'nowrap' }}>
+                              {e.tipo==='gasto'||e.tipo==='pago' ? '−' : '+'}{formatCurrency(e.monto)}
+                            </td>
+                            <td style={{ padding:'6px 10px', color:'#555' }}>{e.descripcion}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ═══ VENDEDOR $ LEDGER ════════════════════════════════════════════ */}
+      <div className="mt-3 mb-2 rounded-xl overflow-hidden" style={{ border: '1px solid #FFE0B2' }}>
+        <button
+          className="w-full flex items-center justify-between px-4 py-3 font-bold text-sm"
+          style={{ background: 'linear-gradient(135deg,#E65100,#F57C00)', color:'#fff' }}
+          onClick={() => setVendorOpen(v => !v)}
+        >
+          <div className="flex items-center gap-2">
+            <User size={16} />
+            VENDEDOR $ — Gastos / Abonos del Vendedor
+            <span style={{ background:'rgba(255,255,255,0.2)', borderRadius:10, padding:'1px 8px', fontSize:11, fontWeight:400 }}>
+              {vendorEntries.length} entradas · Balance: {vendorTotal >= 0 ? '+' : ''}{formatCurrency(vendorTotal)}
+            </span>
+          </div>
+          <motion.div animate={{ rotate: vendorOpen ? 180 : 0 }} transition={{ duration:0.2 }}>
+            <ChevronDown size={16} />
+          </motion.div>
+        </button>
+        <AnimatePresence>
+          {vendorOpen && (
+            <motion.div initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }} transition={{ duration:0.2 }} style={{ overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', background:'#FFF3E0' }}>
+                {/* Add entry form */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <select value={vendorTipo} onChange={e => setVendorTipo(e.target.value)}
+                    style={{ height:34, padding:'0 10px', borderRadius:6, border:'1px solid #FFCC80', fontSize:13, outline:'none', background:'#fff' }}>
+                    <option value="gasto">Gasto</option>
+                    <option value="pago">Pago</option>
+                    <option value="abono">Abono</option>
+                    <option value="ingreso">Ingreso</option>
+                  </select>
+                  <input type="number" value={vendorMonto} onChange={e => setVendorMonto(e.target.value)} placeholder="Monto"
+                    style={{ height:34, padding:'0 10px', borderRadius:6, border:'1px solid #FFCC80', fontSize:13, outline:'none', width:110 }} />
+                  <input type="text" value={vendorDesc} onChange={e => setVendorDesc(e.target.value)} placeholder="Descripción"
+                    style={{ height:34, padding:'0 10px', borderRadius:6, border:'1px solid #FFCC80', fontSize:13, outline:'none', flex:1, minWidth:140 }} />
+                  <button onClick={addVendorEntry}
+                    className="flex items-center gap-1 px-3 rounded-lg text-white font-bold text-sm"
+                    style={{ background:'#E65100', height:34, cursor:'pointer', border:'none' }}>
+                    <Plus size={14}/> Agregar
+                  </button>
+                </div>
+                {vendorEntries.length === 0 ? (
+                  <div style={{ textAlign:'center', padding:'16px 0', color:'#FFCC80', fontSize:13 }}>Sin entradas aún</div>
+                ) : (
+                  <div style={{ maxHeight:200, overflowY:'auto', borderRadius:6, border:'1px solid #FFE0B2' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                      <thead><tr style={{ background:'#FFE0B2' }}>
+                        {['Fecha','Tipo','Monto','Descripción'].map(h=>(
+                          <th key={h} style={{ padding:'6px 10px', textAlign:'left', color:'#E65100', fontWeight:700, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {vendorEntries.map((e,i)=>(
+                          <tr key={e.id} style={{ borderBottom:'1px solid #FFF3E0', background: i%2===0?'#fff':'#fffaf5' }}>
+                            <td style={{ padding:'6px 10px', whiteSpace:'nowrap', color:'#666' }}>{formatDate(e.date)}</td>
+                            <td style={{ padding:'6px 10px' }}>
+                              <span style={{ background: e.tipo==='gasto'||e.tipo==='pago' ? '#FFEBEE' : '#FFF3E0', color: e.tipo==='gasto'||e.tipo==='pago' ? '#C62828' : '#E65100', padding:'1px 7px', borderRadius:8, fontSize:11, fontWeight:700 }}>{e.tipo}</span>
+                            </td>
+                            <td style={{ padding:'6px 10px', fontWeight:700, color: e.tipo==='gasto'||e.tipo==='pago' ? '#C62828' : '#2E7D32', textAlign:'right', whiteSpace:'nowrap' }}>
+                              {e.tipo==='gasto'||e.tipo==='pago' ? '−' : '+'}{formatCurrency(e.monto)}
+                            </td>
+                            <td style={{ padding:'6px 10px', color:'#555' }}>{e.descripcion}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </ModalWrapper>
   );

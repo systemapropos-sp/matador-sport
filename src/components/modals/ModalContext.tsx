@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 export type ModalType =
@@ -15,6 +15,17 @@ export type ModalType =
   | 'clientList'
   | 'balance'
   | 'accounting'
+  | 'ventasReport'
+  | 'reportes'
+  | 'help'
+  | 'movilCrearCliente'
+  | 'movilRetiro'
+  | 'movilRecargas'
+  | 'movilCancelarRecarga'
+  | 'movilTickets'
+  | 'movilReporte'
+  | 'movilListaClientes'
+  | 'cerrarCaja'
   | null;
 
 export interface ModalState {
@@ -40,6 +51,15 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const closeModal = useCallback(() => {
     setModalState({ type: null });
   }, []);
+
+  // ESC key closes any open modal globally
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [closeModal]);
 
   return (
     <ModalContext.Provider value={{ modalState, openModal, closeModal }}>

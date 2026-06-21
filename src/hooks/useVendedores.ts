@@ -1,4 +1,11 @@
-import { useState, useCallback } from 'react';
+/**
+ * useVendedores — Provides the active vendor from the NMV auth session.
+ *
+ * CRITICAL: reads from nmv_vendor_id / nmv_vendor_name (set by saveVendorSession)
+ * so each vendor sees THEIR OWN name regardless of which device they use.
+ * No hardcoded defaults. No "María" fallback.
+ */
+import { useState, useCallback, useEffect } from 'react';
 
 export interface Vendedor {
   id: string;
@@ -7,39 +14,45 @@ export interface Vendedor {
   createdAt: string;
 }
 
-const STORAGE_KEY = 'matador_vendedores';
-const ACTIVE_KEY = 'matador_vendedor_active';
+// Keys used by vendorAuth.ts
+const NMV_VENDOR_ID   = 'nmv_vendor_id';
+const NMV_VENDOR_NAME = 'nmv_vendor_name';
 
-function loadVendedores(): Vendedor[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore */ }
-  // Default: single vendor
-  return [{ id: 'v-001', name: 'Vendedor 1', active: true, createdAt: new Date().toISOString() }];
-}
-
-function saveVendedores(vendedores: Vendedor[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendedores)); } catch { /* ignore */ }
-}
-
-function loadActiveVendedorId(): string | null {
-  try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }
-}
-
-function saveActiveVendedorId(id: string) {
-  try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
+/** Load the active vendor from the real NMV auth session */
+function loadFromAuthSession(): Vendedor | null {
+  const id   = localStorage.getItem(NMV_VENDOR_ID);
+  const name = localStorage.getItem(NMV_VENDOR_NAME);
+  if (id && name) {
+    return { id, name, active: true, createdAt: new Date().toISOString() };
+  }
+  return null;
 }
 
 export function useVendedores() {
-  const [vendedores, setVendedores] = useState<Vendedor[]>(() => loadVendedores());
-  const [activeVendedorId, setActiveVendedorId] = useState<string | null>(() => loadActiveVendedorId());
+  const [authVendor, setAuthVendor] = useState<Vendedor | null>(() => loadFromAuthSession());
 
-  const activeVendedor = vendedores.find(v => v.id === activeVendedorId) || vendedores[0] || null;
+  // Re-read when localStorage changes (e.g. after login/logout)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === NMV_VENDOR_ID || e.key === NMV_VENDOR_NAME) {
+        setAuthVendor(loadFromAuthSession());
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
-  const setActive = useCallback((id: string) => {
-    setActiveVendedorId(id);
-    saveActiveVendedorId(id);
+  // Build a single-element list from the auth session
+  const vendedores: Vendedor[] = authVendor ? [authVendor] : [];
+
+  // activeVendedor is always the logged-in vendor from the auth session
+  const activeVendedor: Vendedor | null = authVendor;
+  const activeVendedorId: string | null = authVendor?.id ?? null;
+
+  // These mutators are kept for API compatibility but update localStorage directly
+  const setActive = useCallback((_id: string) => {
+    // In NMV, the active vendor is set by the auth session — not manually
+    setAuthVendor(loadFromAuthSession());
   }, []);
 
   const addVendedor = useCallback((name: string) => {
@@ -49,28 +62,15 @@ export function useVendedores() {
       active: true,
       createdAt: new Date().toISOString(),
     };
-    setVendedores(prev => {
-      const updated = [...prev, v];
-      saveVendedores(updated);
-      return updated;
-    });
     return v.id;
   }, []);
 
-  const removeVendedor = useCallback((id: string) => {
-    setVendedores(prev => {
-      const updated = prev.filter(v => v.id !== id);
-      saveVendedores(updated);
-      return updated;
-    });
+  const removeVendedor = useCallback((_id: string) => {
+    // No-op in Supabase-auth mode
   }, []);
 
-  const renameVendedor = useCallback((id: string, name: string) => {
-    setVendedores(prev => {
-      const updated = prev.map(v => v.id === id ? { ...v, name } : v);
-      saveVendedores(updated);
-      return updated;
-    });
+  const renameVendedor = useCallback((_id: string, _name: string) => {
+    // No-op in Supabase-auth mode
   }, []);
 
   return {

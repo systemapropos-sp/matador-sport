@@ -1,0 +1,20 @@
+const fs = require('fs');
+const dest = __dirname + '/public/nmv-icon.svg';
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0D9488;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0F766E;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect x="20" y="20" width="472" height="472" rx="76" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="3"/>
+  <circle cx="256" cy="128" r="52" fill="rgba(255,255,255,0.15)"/>
+  <text x="256" y="148" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="55" fill="#FFD700">\u2605</text>
+  <text x="256" y="275" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="108" fill="#FFFFFF" letter-spacing="4">NMV</text>
+  <text x="256" y="335" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="46" fill="rgba(255,255,255,0.92)" letter-spacing="8">LOTTERY</text>
+  <rect x="80" y="360" width="352" height="3" rx="2" fill="rgba(255,255,255,0.3)"/>
+  <text x="256" y="400" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.65)" letter-spacing="2">SISTEMA DE VENTAS</text>
+</svg>`;
+fs.writeFileSync(dest, svg, 'utf8');
+console.log('SVG created:', dest, fs.statSync(dest).size, 'bytes');

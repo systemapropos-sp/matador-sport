@@ -72,7 +72,7 @@ export default function ModalWrapper({
                   style={{
                     maxWidth,
                     width: 'calc(100% - 2rem)',
-                    maxHeight: '90vh',
+                    maxHeight: '95vh',
                   }}
                 >
                 {/* Header */}
@@ -119,8 +119,8 @@ export default function ModalWrapper({
 
                   {/* Body */}
                   <div
-                    className="overflow-y-auto modal-scrollbar"
-                    style={{ padding: '20px' }}
+                    className="overflow-y-auto modal-scrollbar flex-1 min-h-0"
+                    style={{ padding: '16px 20px' }}
                   >
                     {children}
                   </div>

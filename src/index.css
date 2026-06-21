@@ -40,6 +40,29 @@
   }
 }
 
+/* ── Hide scrollbar but keep scroll functionality ── */
+.hide-scrollbar {
+  -ms-overflow-style: none;   /* IE/Edge */
+  scrollbar-width: none;      /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;              /* Chrome/Safari */
+}
+
+/* ── Hide number input spin buttons (up/down arrows) ── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@layer base {
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -85,4 +108,117 @@
   .responsive-tables > *:nth-child(5) {
     grid-column: auto;
   }
+}
+
+/* ── iOS zoom fix: prevents Safari auto-zoom when tapping inputs ──── */
+/* iOS zooms in when font-size < 16px on any input element            */
+input, textarea, select {
+  font-size: 16px !important;
+}
+/* But allow explicit smaller sizes on non-touch-target elements */
+@media (pointer: fine) {
+  input, textarea, select {
+    font-size: inherit !important;
+  }
+}
+
+/* ── Loterias 1-column scroll-snap grid (mobile) ──────────────────── */
+.loterias-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 6px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.loterias-grid > * {
+  scroll-snap-align: start;
+}
+
+/* ── Custom PIN keypad ───────────────────────────────────────────── */
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 280px;
+  margin: 0 auto;
+}
+.pin-key {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pin-key:active {
+  background: #f3f4f6;
+  transform: scale(0.93);
+}
+.pin-key-wide {
+  border-radius: 99px;
+  aspect-ratio: unset;
+  padding: 14px 0;
+}
+
+/* ── Prevent body scroll bounce on iOS ──────────────────────────── */
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THERMAL PRINTER — @media print  (80mm roll paper)
+   ══════════════════════════════════════════════════════════════════════ */
+@media print {
+  /* 1. Hide EVERYTHING */
+  body > * { display: none !important; }
+
+  /* 2. Show only the ticket area */
+  #ticket-print-area {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+  }
+  #ticket-print-area * { visibility: visible !important; }
+
+  /* 3. 80mm thermal roll — no margins */
+  @page {
+    size: 80mm auto;
+    margin: 0mm 2mm;
+  }
+
+  /* 4. Ticket receipt typography */
+  .ticket-receipt {
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11pt !important;
+    color: #000 !important;
+    padding: 3mm 2mm !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 5. Also handle daily report print */
+  #report-print-area {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+  }
+  #report-print-area * { visibility: visible !important; }
+
+  /* 6. Hide modal chrome, backdrop, no-print elements */
+  .no-print,
+  .no-print * { display: none !important; }
 }

@@ -20,7 +20,7 @@ export const CAPACITY_LIMITS: Record<string, number> = {
 
 export interface UsePlaysReturn {
   plays: Play[];
-  addPlay: (numbers: string, amount: number, lotteryId: string, lotteryName: string) => boolean;
+  addPlay: (numbers: string, amount: number, lotteryId: string, lotteryName: string, typeOverride?: string) => boolean;
   removePlay: (id: string) => void;
   clearPlays: () => void;
   totalPlays: number;
@@ -35,11 +35,11 @@ export function usePlays(): UsePlaysReturn {
   const [plays, setPlays] = useState<Play[]>([]);
 
   const addPlay = useCallback(
-    (numbers: string, amount: number, lotteryId: string, lotteryName: string): boolean => {
+    (numbers: string, amount: number, lotteryId: string, lotteryName: string, typeOverride?: string): boolean => {
       const cleanNumbers = numbers.replace(/\D/g, '');
       if (!cleanNumbers || amount <= 0) return false;
 
-      const type = detectPlayType(cleanNumbers);
+      const type = (typeOverride as PlayType) || detectPlayType(cleanNumbers);
 
       // Check capacity before adding
       const currentCount = plays.filter((p) => p.type === type).length;
@@ -56,17 +56,30 @@ export function usePlays(): UsePlaysReturn {
       };
 
       setPlays((prev) => [...prev, newPlay]);
+
+      // ── Notificar al DisponibleField para descuento en tiempo real ──
+      window.dispatchEvent(new CustomEvent('nmv:play-added', {
+        detail: { numbers: cleanNumbers, amount, lotteryId }
+      }));
+
       return true;
     },
     [plays]
   );
 
   const removePlay = useCallback((id: string) => {
+    const play = plays.find(p => p.id === id);
+    if (play) {
+      window.dispatchEvent(new CustomEvent('nmv:play-removed', {
+        detail: { numbers: play.numbers, amount: play.amount, lotteryId: play.lotteryId }
+      }));
+    }
     setPlays((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+  }, [plays]);
 
   const clearPlays = useCallback(() => {
     setPlays([]);
+    window.dispatchEvent(new CustomEvent('nmv:plays-cleared'));
   }, []);
 
   const totalPlays = plays.length;

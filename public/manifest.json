@@ -1,24 +1,50 @@
 {
-  "name": "MATADOR-SPORT Lottery System",
-  "short_name": "MATADOR",
-  "description": "Sistema de Banca de Loteria - MATADOR-SPORT",
+  "name": "NMV Lottery - Punto de Venta",
+  "short_name": "NMV Lottery",
+  "description": "Sistema de ventas de lotería NMV - Punto de venta móvil",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f1a",
-  "theme_color": "#0f0f1a",
-  "orientation": "portrait-primary",
-  "scope": "/",
+  "orientation": "portrait",
+  "background_color": "#0D9488",
+  "theme_color": "#0D9488",
+  "categories": ["business", "finance"],
   "lang": "es",
+  "scope": "/",
   "icons": [
+    {
+      "src": "/nmv-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/nmv-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Vender",
+      "short_name": "Vender",
+      "description": "Ir al punto de venta",
+      "url": "/",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }

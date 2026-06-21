@@ -1,6 +1,6 @@
 export type PlayType = 'directo' | 'pale' | 'tripleta' | 'cash3' | 'play4' | 'pick5' | 'super-pale';
 
-export type TicketStatus = 'pending' | 'winner' | 'loser' | 'cancelled';
+export type TicketStatus = 'pending' | 'winner' | 'loser' | 'cancelled' | 'paid' | 'partial_payment';
 
 export type LotteryType = 'regular' | 'super-pale' | 'pick345';
 
@@ -31,6 +31,11 @@ export interface Ticket {
   createdAt: Date;
   vendorId: string;
   vendorName: string;
+  /** 12-digit unique code for payout verification (ORIGINAL only) */
+  verificationCode?: string;
+  prize?: number;
+  /** Unique barcode for scanning — format NMVYYYYMMDDxxxxxxx */
+  barcode?: string;
 }
 
 export interface User {

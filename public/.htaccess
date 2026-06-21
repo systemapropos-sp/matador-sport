@@ -1,0 +1,91 @@
+Options -Indexes
+Options -MultiViews
+
+# Security Headers
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set X-XSS-Protection "1; mode=block"
+Header always set X-Content-Type-Options "nosniff"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https://acvnyvsofwsatxqyjjfk.supabase.co wss://acvnyvsofwsatxqyjjfk.supabase.co https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self';"
+
+# DirectoryIndex — standard index.html (no idx.html hack needed with hashed assets)
+DirectoryIndex index.html
+
+# ── LiteSpeed: disable server-level static cache ────────────────────────────
+<IfModule LiteSpeed>
+  CacheDisable public /
+</IfModule>
+
+# ── SPA Routing ──────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Never rewrite existing files or directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Pass through service worker and manifest
+  RewriteRule ^(nmv-sw\.js|sw\.js|nmv-sw\.php|clear\.php|manifest\.json)$ - [L]
+
+  # Never rewrite /admin/ paths — let admin's own .htaccess handle them
+  RewriteRule ^admin(/.*)?$ - [L]
+
+  # All other routes → index.html (SPA routing)
+  RewriteRule ^ /index.html [L]
+</IfModule>
+
+# ── Gzip compression ─────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ── Service Worker: NEVER cached ─────────────────────────────────────────────
+<FilesMatch "^(nmv-sw\.js|sw\.js)$">
+  Header always unset Cache-Control
+  Header always unset ETag
+  FileETag None
+  Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header always set Pragma "no-cache"
+  Header always set Expires "Thu, 01 Jan 1970 00:00:00 GMT"
+  <IfModule LiteSpeed>
+    CacheLookup off
+  </IfModule>
+</FilesMatch>
+
+# ── HTML: NEVER cached ───────────────────────────────────────────────────────
+<FilesMatch "\.(html|htm)$">
+  Header always unset Cache-Control
+  Header always unset ETag
+  FileETag None
+  Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header always set Pragma "no-cache"
+  Header always set Expires "Thu, 01 Jan 1970 00:00:00 GMT"
+  <IfModule LiteSpeed>
+    CacheLookup off
+  </IfModule>
+</FilesMatch>
+
+# ── Hashed assets (JS, CSS): cache 1 year — safe (new hash per build) ───────
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/css              "access plus 1 year"
+  ExpiresByType image/png             "access plus 1 year"
+  ExpiresByType image/jpeg            "access plus 1 year"
+  ExpiresByType image/webp            "access plus 1 year"
+  ExpiresByType image/svg+xml         "access plus 1 year"
+  ExpiresByType application/json      "access plus 0 seconds"
+</IfModule>
+
+# ── Block sensitive files ────────────────────────────────────────────────────
+<FilesMatch "\.(env|sql|sh|log|bak)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>

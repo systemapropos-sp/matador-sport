@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, LogIn, LogOut, Trash2, Calendar, Timer } from 'lucide-react';
 import ModalWrapper from './ModalWrapper';
 
 interface AuthorizeModalProps {
@@ -7,156 +8,257 @@ interface AuthorizeModalProps {
   onClose: () => void;
 }
 
+interface PunchRecord {
+  id: string;
+  type: 'entrada' | 'salida';
+  timestamp: string; // ISO string
+}
+
+const STORAGE_KEY = 'nmv_punch_records';
+
+function loadPunches(): PunchRecord[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function savePunches(punches: PunchRecord[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(punches));
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+}
+
+function formatDateFull(iso: string) {
+  return new Date(iso).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/** Calculate total worked hours from pairs of entrada/salida */
+function calcWorkedHours(punches: PunchRecord[]): string {
+  let totalMs = 0;
+  const entries = punches.filter(p => p.type === 'entrada').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  const exits   = punches.filter(p => p.type === 'salida').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  entries.forEach((entry, i) => {
+    const exit = exits[i];
+    if (exit) {
+      totalMs += new Date(exit.timestamp).getTime() - new Date(entry.timestamp).getTime();
+    } else {
+      // Still clocked in — count up to now
+      totalMs += Date.now() - new Date(entry.timestamp).getTime();
+    }
+  });
+
+  const totalMins = Math.floor(totalMs / 60000);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h}h ${m}m`;
+}
+
 export default function AuthorizeModal({ open, onClose }: AuthorizeModalProps) {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
-  const [shaking, setShaking] = useState(false);
+  const [clock, setClock] = useState(new Date());
+  const [punches, setPunches] = useState<PunchRecord[]>(loadPunches);
+  const [toast, setToast] = useState('');
 
-  const handleClose = () => {
-    setPassword('');
-    setConfirm('');
-    setError('');
-    setShaking(false);
-    onClose();
+  // Live clock
+  useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const todayStr = getTodayStr();
+  const todayPunches = punches.filter(p => p.timestamp.slice(0, 10) === todayStr)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  // Determine current state: last punch of today
+  const lastTodayPunch = todayPunches.length > 0 ? todayPunches[todayPunches.length - 1] : null;
+  const isClockedIn = lastTodayPunch?.type === 'entrada';
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2500);
   };
 
-  const handleAuthorize = () => {
-    setError('');
-
-    if (!password.trim() || !confirm.trim()) {
-      setError('Ambos campos son requeridos');
-      triggerShake();
-      return;
-    }
-
-    if (password !== confirm) {
-      setError('Las contrasenas no coinciden');
-      triggerShake();
-      return;
-    }
-
-    // Success - authorized
-    handleClose();
+  const handlePunch = (type: 'entrada' | 'salida') => {
+    const newPunch: PunchRecord = {
+      id: Date.now().toString(),
+      type,
+      timestamp: new Date().toISOString(),
+    };
+    const updated = [...punches, newPunch];
+    setPunches(updated);
+    savePunches(updated);
+    showToast(type === 'entrada' ? '✅ Entrada registrada' : '👋 Salida registrada');
   };
 
-  const triggerShake = () => {
-    setShaking(true);
-    setTimeout(() => setShaking(false), 400);
+  const handleClearToday = () => {
+    if (!window.confirm('¿Borrar todos los ponches de hoy?')) return;
+    const updated = punches.filter(p => p.timestamp.slice(0, 10) !== todayStr);
+    setPunches(updated);
+    savePunches(updated);
+    showToast('Ponches de hoy eliminados');
   };
 
-  const shakeAnimation: { animate?: { x: number[]; transition: { duration: number } } } = shaking
-    ? { animate: { x: [0, -10, 10, -10, 10, 0], transition: { duration: 0.4 } } }
-    : {};
+  const workedToday = todayPunches.length > 0 ? calcWorkedHours(todayPunches) : '0h 0m';
 
-  const inputStyle: React.CSSProperties = {
-    height: '44px',
-    width: '100%',
-    border: '1px solid #cccccc',
-    borderRadius: '4px',
-    padding: '0 12px',
-    fontSize: '14px',
-    outline: 'none',
-  };
-
-  const inputFocusStyle = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.style.borderColor = '#337ab7';
-    e.currentTarget.style.boxShadow = '0 0 0 2px rgba(51,122,183,0.2)';
-  };
-
-  const inputBlurStyle = (e: React.FocusEvent<HTMLInputElement>, hasError: boolean) => {
-    e.currentTarget.style.borderColor = hasError ? '#d9534f' : '#cccccc';
-    e.currentTarget.style.boxShadow = 'none';
-  };
+  const todayLabel = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <ModalWrapper open={open} onClose={handleClose} title="Autorizar ponchado" maxWidth="400px">
-      <motion.div {...shakeAnimation}>
-        <div className="flex flex-col gap-4">
-          {/* Password */}
-          <div>
-            <label
-              style={{
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#555555',
-                display: 'block',
-                marginBottom: '6px',
-              }}
-            >
-              Contrasena
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(''); }}
-              onFocus={inputFocusStyle}
-              onBlur={(e) => inputBlurStyle(e, false)}
-              style={{
-                ...inputStyle,
-                borderColor: error && !password.trim() ? '#d9534f' : '#cccccc',
-              }}
-            />
-          </div>
+    <ModalWrapper open={open} onClose={onClose} title="Ponchar — Control de Horario" maxWidth="440px">
 
-          {/* Confirm */}
-          <div>
-            <label
-              style={{
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#555555',
-                display: 'block',
-                marginBottom: '6px',
-              }}
-            >
-              Confirmacion
-            </label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={(e) => { setConfirm(e.target.value); setError(''); }}
-              onFocus={inputFocusStyle}
-              onBlur={(e) => inputBlurStyle(e, false)}
-              style={{
-                ...inputStyle,
-                borderColor: error && !confirm.trim() ? '#d9534f' : '#cccccc',
-              }}
-            />
-          </div>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            className="mb-4 px-3 py-2 rounded-lg text-sm font-bold text-center"
+            style={{ background: '#E8F5E9', color: '#2E7D32', border: '1px solid #C8E6C9' }}>
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* Error message */}
-          {error && (
-            <motion.p
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{ color: '#d9534f', fontSize: '13px', marginTop: '-4px' }}
-            >
-              {error}
-            </motion.p>
+      {/* Live Clock */}
+      <div className="rounded-xl mb-5 text-center py-5"
+        style={{ background: 'linear-gradient(135deg, #1a237e, #0d47a1)', border: '1px solid #3949ab' }}>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize', marginBottom: 4 }}>
+          {todayLabel}
+        </div>
+        <div style={{ fontSize: 42, fontWeight: 300, color: '#fff', letterSpacing: 2, lineHeight: 1 }}>
+          {clock.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+        </div>
+        {/* Status badge */}
+        <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full"
+          style={{ background: isClockedIn ? 'rgba(76,175,80,0.25)' : 'rgba(255,255,255,0.12)', border: `1px solid ${isClockedIn ? '#66BB6A' : 'rgba(255,255,255,0.2)'}` }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: isClockedIn ? '#66BB6A' : '#9e9e9e', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: isClockedIn ? '#A5D6A7' : 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+            {isClockedIn ? 'En turno' : 'Fuera de turno'}
+          </span>
+        </div>
+      </div>
+
+      {/* Today stats */}
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="rounded-lg p-3 text-center" style={{ background: '#E3F2FD', border: '1px solid #BBDEFB' }}>
+          <Timer size={16} color="#1565C0" style={{ margin: '0 auto 4px' }} />
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#1565C0' }}>{workedToday}</div>
+          <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>Horas trabajadas hoy</div>
+        </div>
+        <div className="rounded-lg p-3 text-center" style={{ background: '#F3E5F5', border: '1px solid #E1BEE7' }}>
+          <Calendar size={16} color="#6A1B9A" style={{ margin: '0 auto 4px' }} />
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#6A1B9A' }}>{todayPunches.length}</div>
+          <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>Ponches hoy</div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => handlePunch('entrada')}
+          disabled={isClockedIn}
+          className="flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white transition-opacity"
+          style={{
+            background: isClockedIn ? '#ccc' : 'linear-gradient(135deg, #2E7D32, #388E3C)',
+            cursor: isClockedIn ? 'not-allowed' : 'pointer',
+            fontSize: 15,
+            boxShadow: isClockedIn ? 'none' : '0 4px 14px rgba(46,125,50,0.35)',
+            opacity: isClockedIn ? 0.6 : 1,
+          }}>
+          <LogIn size={18} />
+          Entrada
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => handlePunch('salida')}
+          disabled={!isClockedIn}
+          className="flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white transition-opacity"
+          style={{
+            background: !isClockedIn ? '#ccc' : 'linear-gradient(135deg, #b71c1c, #c62828)',
+            cursor: !isClockedIn ? 'not-allowed' : 'pointer',
+            fontSize: 15,
+            boxShadow: !isClockedIn ? 'none' : '0 4px 14px rgba(198,40,40,0.35)',
+            opacity: !isClockedIn ? 0.6 : 1,
+          }}>
+          <LogOut size={18} />
+          Salida
+        </motion.button>
+      </div>
+
+      {/* Punch history for today */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 style={{ fontSize: 13, fontWeight: 700, color: '#555', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Clock size={14} /> Ponches de Hoy
+          </h4>
+          {todayPunches.length > 0 && (
+            <button onClick={handleClearToday}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+              style={{ background: '#FFEBEE', color: '#C62828', border: '1px solid #FFCDD2', cursor: 'pointer' }}>
+              <Trash2 size={11} /> Limpiar
+            </button>
           )}
         </div>
-      </motion.div>
 
-      {/* Footer */}
-      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e0e0e0' }}>
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={handleAuthorize}
-          className="w-full rounded transition-colors"
-          style={{
-            height: '44px',
-            backgroundColor: '#5cb85c',
-            color: '#ffffff',
-            fontSize: '14px',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4cae4c'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#5cb85c'; }}
-        >
-          Autorizar
+        {todayPunches.length === 0 ? (
+          <div className="text-center py-5 rounded-lg"
+            style={{ background: '#f8f9fa', border: '1px dashed #ddd', color: '#999', fontSize: 13 }}>
+            Sin ponches hoy. Presiona <b>Entrada</b> para comenzar.
+          </div>
+        ) : (
+          <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 8 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #e9ecef' }}>
+                  <th style={{ padding: '7px 12px', textAlign: 'left', color: '#666', fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>#</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'left', color: '#666', fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Tipo</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'left', color: '#666', fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Hora</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'left', color: '#666', fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {todayPunches.map((p, i) => (
+                  <motion.tr key={p.id}
+                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}
+                    style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                    <td style={{ padding: '8px 12px', color: '#999', fontSize: 12 }}>{i + 1}</td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold"
+                        style={{
+                          background: p.type === 'entrada' ? '#E8F5E9' : '#FFEBEE',
+                          color: p.type === 'entrada' ? '#2E7D32' : '#C62828',
+                        }}>
+                        {p.type === 'entrada' ? <LogIn size={11} /> : <LogOut size={11} />}
+                        {p.type === 'entrada' ? 'Entrada' : 'Salida'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 12px', fontWeight: 700, color: '#333', whiteSpace: 'nowrap' }}>
+                      {formatTime(p.timestamp)}
+                    </td>
+                    <td style={{ padding: '8px 12px', fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>
+                      {formatDateFull(p.timestamp)}
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Close button */}
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e0e0e0' }}>
+        <motion.button whileTap={{ scale: 0.98 }} onClick={onClose}
+          className="w-full rounded-xl font-semibold text-sm transition-colors"
+          style={{ height: 42, background: '#f5f5f5', color: '#666', border: '1px solid #e0e0e0', cursor: 'pointer' }}>
+          Cerrar
         </motion.button>
       </div>
     </ModalWrapper>
