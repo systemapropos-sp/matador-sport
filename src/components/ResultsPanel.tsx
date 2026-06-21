@@ -1,15 +1,15 @@
 /**
  * ResultsPanel — NMV Lottery
  * Formato idéntico a loteriasdominicanas.com:
- *  • Sidebar izquierdo "En Directo" con bolitas verdes
  *  • Grid principal agrupado por empresa (cards con header de color)
  *  • Auto-sync cada 60s + Supabase Realtime
+ *  • Navegación por fechas ← →
  *  • SIN links externos
  */
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Clock, Calendar, Wifi } from 'lucide-react';
-import { format } from 'date-fns';
+import { RefreshCw, Clock, Calendar, Wifi, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, subDays, addDays, isToday as checkIsToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useResultsAutoSync, detectCompany } from '@/hooks/useResultsAutoSync';
 import type { LiveResult } from '@/hooks/useResultsAutoSync';
@@ -35,8 +35,8 @@ const COMPANY_COLORS: Record<string, { bg: string; text: string }> = {
 
 // ── Bolita individual (green ball) ────────────────────────────────────────────
 function Bolita({ number, large = false, grey = false }: { number: string; large?: boolean; grey?: boolean }) {
-  const size = large ? 56 : 42;
-  const fs   = large ? 17 : 14;
+  const size = large ? 67 : 50;   // +20 % para mejor visibilidad móvil
+  const fs   = large ? 20 : 17;
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
@@ -52,7 +52,7 @@ function Bolita({ number, large = false, grey = false }: { number: string; large
         fontWeight: 800, fontSize: fs, color: grey ? '#555' : '#fff',
         lineHeight: 1, letterSpacing: 0,
       }}>
-        {number.padStart(2, '0')}
+        {number.slice(0, 2).padStart(2, '0')}
       </span>
     </div>
   );
@@ -83,7 +83,6 @@ function ResultCard({ result }: { result: LiveResult }) {
   const pick4 = result.pick4;
   const pick5 = result.pick5;
 
-  // Determine if has numbers
   const hasNumbers = nums3.length > 0 || pick3 || pick4 || pick5;
 
   return (
@@ -179,12 +178,32 @@ function CompanySection({ company, results }: { company: string; results: LiveRe
 
 // ── Main ResultsPanel ─────────────────────────────────────────────────────────
 export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
-  const { results, loading, lastUpdated, error, isMockData, refresh } = useResultsAutoSync();
-  const [selectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  // ── Navegación por fechas ──────────────────────────────────────────────────
+  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const isAtToday = selectedDate === todayStr;
+
+  const goBack = () => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    setSelectedDate(format(subDays(d, 1), 'yyyy-MM-dd'));
+  };
+
+  const goForward = () => {
+    if (isAtToday) return; // No ir más allá de hoy
+    const d = new Date(selectedDate + 'T12:00:00');
+    const next = addDays(d, 1);
+    setSelectedDate(format(next, 'yyyy-MM-dd'));
+  };
+
+  // Pasar la fecha seleccionada al hook
+  const { results, loading, lastUpdated, error, isMockData, refresh } = useResultsAutoSync(selectedDate);
 
   if (!isOpen) return null;
 
-  const todayLabel = format(new Date(), "EEEE d 'de' MMMM yyyy", { locale: es });
+  const dateObj = new Date(selectedDate + 'T12:00:00');
+  const dateLabel = format(dateObj, "EEEE d 'de' MMMM yyyy", { locale: es });
+  const isDateToday = checkIsToday(dateObj);
 
   // Group by company (maintain insertion order)
   const grouped: Record<string, LiveResult[]> = {};
@@ -193,12 +212,6 @@ export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
     if (!grouped[c]) grouped[c] = [];
     grouped[c].push(r);
   }
-
-  // Sidebar: En Directo — results with numbers, newest first
-  const enDirecto = [...results]
-    .filter(r => r.primera || r.segunda || r.tercera)
-    .sort((a, b) => (b.draw_time || '').localeCompare(a.draw_time || ''))
-    .slice(0, 6);
 
   return (
     <motion.div
@@ -225,12 +238,58 @@ export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: 8,
       }}>
-        {/* Left: date + status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Left: date navigation + status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+          {/* ← Día anterior */}
+          <button
+            onClick={goBack}
+            title="Día anterior"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, borderRadius: 6,
+              border: '1px solid #d1d5db', background: '#fff',
+              cursor: 'pointer', color: '#374151', flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f3f4f6'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
+          >
+            <ChevronLeft size={15} />
+          </button>
+
+          {/* Fecha actual */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#555' }}>
             <Calendar size={14} />
-            <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{todayLabel}</span>
+            <span style={{ fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+              {isDateToday ? 'Hoy — ' : ''}{dateLabel}
+            </span>
           </div>
+
+          {/* → Día siguiente (deshabilitado si es hoy) */}
+          <button
+            onClick={goForward}
+            disabled={isAtToday}
+            title={isAtToday ? 'Ya estás en el día de hoy' : 'Día siguiente'}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, borderRadius: 6,
+              border: '1px solid #d1d5db',
+              background: isAtToday ? '#f9fafb' : '#fff',
+              cursor: isAtToday ? 'not-allowed' : 'pointer',
+              color: isAtToday ? '#d1d5db' : '#374151',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              if (!isAtToday) (e.currentTarget as HTMLButtonElement).style.background = '#f3f4f6';
+            }}
+            onMouseLeave={(e) => {
+              if (!isAtToday) (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+            }}
+          >
+            <ChevronRight size={15} />
+          </button>
+
+          {/* Status indicators */}
           {lastUpdated && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888' }}>
               <Wifi size={11} color={error ? '#ef4444' : '#22c55e'} />
@@ -244,107 +303,77 @@ export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
           )}
         </div>
 
-        {/* Right: refresh button */}
-        <button
-          onClick={refresh}
-          disabled={loading}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '5px 14px', borderRadius: 6,
-            border: '1px solid #d1d5db',
-            background: '#fff', color: '#374151', fontSize: 12,
-            cursor: loading ? 'wait' : 'pointer', fontWeight: 600,
-          }}
-        >
-          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          Actualizar
-        </button>
+        {/* Right: controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Botón "Hoy" — visible solo cuando no estamos en hoy */}
+          {!isAtToday && (
+            <button
+              onClick={() => setSelectedDate(todayStr)}
+              style={{
+                padding: '4px 12px', borderRadius: 6,
+                border: '1px solid #0D9488',
+                background: '#f0fffe', color: '#0D9488', fontSize: 12,
+                cursor: 'pointer', fontWeight: 700,
+              }}
+            >
+              Hoy
+            </button>
+          )}
+          <button
+            onClick={refresh}
+            disabled={loading}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 14px', borderRadius: 6,
+              border: '1px solid #d1d5db',
+              background: '#fff', color: '#374151', fontSize: 12,
+              cursor: loading ? 'wait' : 'pointer', fontWeight: 600,
+            }}
+          >
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* ── BODY ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* ── SIDEBAR: En Directo ── */}
-        <div style={{
-          width: 240, flexShrink: 0,
-          background: '#fff',
-          borderRight: '1px solid #e5e7eb',
-          overflowY: 'auto',
-          padding: '12px',
-        }}>
-          <div style={{
-            fontSize: 13, fontWeight: 800, color: '#111827',
-            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14,
-          }}>
-            🔔 En Directo
-          </div>
-
-          <AnimatePresence>
-            {loading && enDirecto.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af' }}>
-                <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px', display: 'block' }} />
-                <p style={{ fontSize: 12 }}>Cargando…</p>
-              </div>
-            ) : enDirecto.length === 0 ? (
-              <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: '16px 0' }}>
-                Esperando primeros resultados…
-              </p>
-            ) : enDirecto.map((r) => {
-              const nums = [r.primera, r.segunda, r.tercera].filter(Boolean) as string[];
-              return (
-                <motion.div
-                  key={r.id || r.lottery_name}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  style={{
-                    marginBottom: 14, paddingBottom: 14,
-                    borderBottom: '1px solid #f3f4f6',
-                  }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', marginBottom: 2 }}>
-                    {r.lottery_name}
-                  </div>
-                  {r.draw_time && (
-                    <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, marginBottom: 6 }}>
-                      {r.draw_time}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {nums.map((n, i) => <Bolita key={i} number={n} large />)}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
+        {/* ── SIDEBAR "En Directo" eliminado — el main grid ocupa todo el ancho ── */}
 
         {/* ── MAIN GRID ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
           {loading && results.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: '#6b7280' }}>
               <RefreshCw size={32} className="animate-spin" style={{ margin: '0 auto 12px', display: 'block', color: '#4CAF50' }} />
-              <p style={{ fontSize: 14, fontWeight: 600 }}>Obteniendo resultados en tiempo real…</p>
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Conectando con loteriasdominicanas.com</p>
+              <p style={{ fontSize: 14, fontWeight: 600 }}>Obteniendo resultados…</p>
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
+                {isDateToday ? 'Conectando con Supabase y loteriasdominicanas.com' : `Buscando resultados del ${dateLabel}`}
+              </p>
             </div>
           ) : results.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6b7280' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎰</div>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                Sin resultados por ahora
+                {isDateToday ? 'Sin resultados por ahora' : `Sin resultados para el ${dateLabel}`}
               </p>
               <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 16 }}>
-                Los resultados se actualizan automáticamente cuando salen los sorteos.
+                {isDateToday
+                  ? 'Los resultados se actualizan automáticamente cuando salen los sorteos.'
+                  : 'No se encontraron resultados para esta fecha en la base de datos.'}
               </p>
-              <button
-                onClick={refresh}
-                style={{
-                  padding: '8px 20px', borderRadius: 6, border: '1px solid #d1d5db',
-                  background: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600,
-                  display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto',
-                }}
-              >
-                <RefreshCw size={13} /> Intentar de nuevo
-              </button>
+              {isDateToday && (
+                <button
+                  onClick={refresh}
+                  style={{
+                    padding: '8px 20px', borderRadius: 6, border: '1px solid #d1d5db',
+                    background: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto',
+                  }}
+                >
+                  <RefreshCw size={13} /> Intentar de nuevo
+                </button>
+              )}
               {error && (
                 <p style={{ marginTop: 12, fontSize: 11, color: '#ef4444', maxWidth: 400, margin: '12px auto 0' }}>
                   ⚠ {error}

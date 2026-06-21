@@ -35,6 +35,7 @@ import { useTicket } from '@/hooks/useTicket';
 import { usePlayLimit } from '@/hooks/usePlayLimit';
 import { detectPlayType, formatCurrency } from '@/lib/utils';
 import { regularLotteries } from '@/data/lotteries';
+import { useSorteosVendor } from '@/hooks/useSorteosVendor';
 import { useVendedores } from '@/hooks/useVendedores';
 import { useModalContext } from '@/components/modals';
 import { schedules } from '@/data/schedules';
@@ -1052,17 +1053,25 @@ export default function Dashboard() {
   // Ticket state
   const { createTicket, recentTickets } = useTicket();
 
+  // Dynamic lotteries from Supabase (with fallback to hardcoded)
+  const { lotteries: sorteosLotteries, closingTimes: sorteosClosingTimes } = useSorteosVendor();
+  const lotteries = sorteosLotteries.length > 0 ? sorteosLotteries : regularLotteries;
+
   // Lottery selection — #1: auto-select first open lottery on mount (sorted by closing time)
   const [selectedLotteries, setSelectedLotteries] = useState<string[]>(['florida-pm']);
   useEffect(() => {
+    if (lotteries.length === 0) return;
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
-    const open = regularLotteries
-      .map(l => { const s = schedules.find(sc => sc.lotteryId === l.id); return { id: l.id, closingMins: s ? parseTimeToMinutes(s.closingTime) : 1439 }; })
+    const open = lotteries
+      .map(l => {
+        const closingStr = sorteosClosingTimes[l.id] || schedules.find(sc => sc.lotteryId === l.id)?.closingTime;
+        return { id: l.id, closingMins: closingStr ? parseTimeToMinutes(closingStr) : 1439 };
+      })
       .filter(x => x.closingMins > currentMins)
       .sort((a, b) => a.closingMins - b.closingMins);
     if (open.length > 0) setSelectedLotteries([open[0].id]);
-  }, []); // once on mount
+  }, [lotteries.length]); // re-run when lotteries load from Supabase
 
   // Vendedor
   const { activeVendedor } = useVendedores();
@@ -1070,11 +1079,11 @@ export default function Dashboard() {
   // Calculate theme color directly from selected lottery
   const primaryColor = useMemo(() => {
     if (selectedLotteries.length === 1) {
-      const lottery = regularLotteries.find((l) => l.id === selectedLotteries[0]);
+      const lottery = lotteries.find((l) => l.id === selectedLotteries[0]);
       if (lottery?.color) return lottery.color;
     }
     return '#5cb85c';
-  }, [selectedLotteries]);
+  }, [selectedLotteries, lotteries]);
 
   const [multiSelect, setMultiSelect] = useState(false);
 
@@ -1101,7 +1110,7 @@ export default function Dashboard() {
       setTypeOverride(''); // libera el forzado de tipo
     } else {
       const lotId = selectedLotteries[0] || '';
-      const lotName = regularLotteries.find((l) => l.id === lotId)?.name || lotId;
+      const lotName = lotteries.find((l) => l.id === lotId)?.name || lotId;
       setCash3Lock({ locked: true, lotteryId: lotId, lotteryName: lotName });
       setTypeOverride('cash3'); // fuerza tipo cash3 (3 dígitos)
       setJugada(''); // limpia jugada al activar
@@ -1114,7 +1123,7 @@ export default function Dashboard() {
       setTypeOverride(''); // libera el forzado de tipo
     } else {
       const lotId = selectedLotteries[0] || '';
-      const lotName = regularLotteries.find((l) => l.id === lotId)?.name || lotId;
+      const lotName = lotteries.find((l) => l.id === lotId)?.name || lotId;
       setPlay4Lock({ locked: true, lotteryId: lotId, lotteryName: lotName });
       setTypeOverride('play4'); // fuerza tipo play4 (4 dígitos)
       setJugada(''); // limpia jugada al activar
@@ -1131,6 +1140,8 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [printTicket, setPrintTicket] = useState<TicketData | null>(null);
+  // Task 5: forceReprint — when true, TicketPrintModal shows "COPIA" without QR/verif code
+  const [reprintMode, setReprintMode] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -1143,7 +1154,7 @@ export default function Dashboard() {
   const detectedType = jugada ? detectPlayType(jugada) : '';
   const selectedLotteryName =
     selectedLotteries.length === 1
-      ? regularLotteries.find((l) => l.id === selectedLotteries[0])?.name || ''
+      ? lotteries.find((l) => l.id === selectedLotteries[0])?.name || ''
       : selectedLotteries.length > 1
         ? `${selectedLotteries.length} loterias`
         : '';
@@ -1162,18 +1173,14 @@ export default function Dashboard() {
     [multiSelect]
   );
 
-  // #2: Cycle to next open lottery (Ctrl+/)
+  // #2: Cycle to next lottery in LotterySelector array order (Ctrl+/)
+  // Cicla en el orden visual del selector (loop: última → primera)
   const handleNextLottery = useCallback(() => {
-    const now = new Date();
-    const currentMins = now.getHours() * 60 + now.getMinutes();
-    const open = regularLotteries
-      .map(l => { const s = schedules.find(sc => sc.lotteryId === l.id); return { id: l.id, closingMins: s ? parseTimeToMinutes(s.closingTime) : 1439 }; })
-      .filter(x => x.closingMins > currentMins)
-      .sort((a, b) => a.closingMins - b.closingMins);
-    if (open.length === 0) return;
-    const curIdx = open.findIndex(x => x.id === selectedLotteries[0]);
-    setSelectedLotteries([open[(curIdx + 1) % open.length].id]);
-  }, [selectedLotteries]);
+    if (lotteries.length === 0) return;
+    const curIdx = lotteries.findIndex(l => l.id === selectedLotteries[0]);
+    const nextIdx = (curIdx + 1) % lotteries.length;
+    setSelectedLotteries([lotteries[nextIdx].id]);
+  }, [selectedLotteries, lotteries]);
 
   // Add play callback with capacity check
   const handleAddPlay = useCallback((): boolean => {
@@ -1205,7 +1212,7 @@ export default function Dashboard() {
 
   let added = false;
   lotteriesForPlay.forEach((lotId) => {
-    const lottery = regularLotteries.find((l) => l.id === lotId);
+    const lottery = lotteries.find((l) => l.id === lotId);
     if (lottery) {
       const ok = addPlay(jugada, amount, lottery.id, lottery.name, typeOverride || undefined);
       if (ok) added = true;
@@ -1518,7 +1525,10 @@ export default function Dashboard() {
           typeOverride={typeOverride}
           onTypeOverride={setTypeOverride}
           onNextLottery={handleNextLottery}
-          onReprintTicket={(t) => setPrintTicket(t as TicketData)}
+          onReprintTicket={(t) => {
+            setReprintMode(true); // siempre COPIA al reimprimir — sin QR ni código
+            setPrintTicket(t as TicketData);
+          }}
           onCancelTicket={(ticketId) => {
             if (!confirm('¿Cancelar este ticket? Esta acción no se puede deshacer.')) return;
             // ── Marcar como cancelado (no borrar) para que el Monitor lo vea ──
@@ -1815,11 +1825,12 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ── Ticket Print Modal (opens after CREAR TICKET) ── */}
+      {/* ── Ticket Print Modal (opens after CREAR TICKET or REPRINT) ── */}
       <TicketPrintModal
         ticket={printTicket}
-        onClose={() => setPrintTicket(null)}
+        onClose={() => { setPrintTicket(null); setReprintMode(false); }}
         clientPhone={(printTicket as any)?.clientPhone}
+        forceReprint={reprintMode}
       />
     </Layout>
   );

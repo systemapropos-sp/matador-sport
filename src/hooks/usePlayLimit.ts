@@ -45,39 +45,30 @@ export function usePlayLimit(
     loading: false,
   });
   const [refreshKey, setRefreshKey] = useState(0);
-  // ── Buffer local: acumula jugadas de la sesión actual (auto-descuento) ──
-  const [localBuffer, setLocalBuffer] = useState(0);
+  // ── Buffer local: mapa por número — evita contaminación entre jugadas distintas ──
+  // key = "normalizedNumber_lotteryId"
+  const [localBuffers, setLocalBuffers] = useState<Record<string, number>>({});
 
   // Listen for ticket created, businessId ready, AND local play events
   useEffect(() => {
-    const onUpdate = () => { setRefreshKey(k => k + 1); setLocalBuffer(0); };
+    const onUpdate = () => { setRefreshKey(k => k + 1); setLocalBuffers({}); };
 
     // When play is ADDED locally — descontar del disponible sin esperar Supabase
     const onPlayAdded = (e: Event) => {
       const d = (e as CustomEvent<{ numbers: string; amount: number; lotteryId: string }>).detail;
-      const normalJugada = jugada.replace(/\D/g, '');
-      if (!normalJugada || normalJugada.length < 2) return;
-      const matchNum = d.numbers.replace(/\D/g,'') === normalJugada;
-      const matchLot = !lotteryId || !d.lotteryId || d.lotteryId === lotteryId;
-      if (matchNum && matchLot) {
-        setLocalBuffer(b => b + d.amount);
-      }
+      const key = `${d.numbers.replace(/\D/g, '')}_${d.lotteryId || ''}`;
+      setLocalBuffers(prev => ({ ...prev, [key]: (prev[key] || 0) + d.amount }));
     };
 
     // When play is REMOVED locally — devolver al disponible
     const onPlayRemoved = (e: Event) => {
       const d = (e as CustomEvent<{ numbers: string; amount: number; lotteryId: string }>).detail;
-      const normalJugada = jugada.replace(/\D/g, '');
-      if (!normalJugada || normalJugada.length < 2) return;
-      const matchNum = d.numbers.replace(/\D/g,'') === normalJugada;
-      const matchLot = !lotteryId || !d.lotteryId || d.lotteryId === lotteryId;
-      if (matchNum && matchLot) {
-        setLocalBuffer(b => Math.max(0, b - d.amount));
-      }
+      const key = `${d.numbers.replace(/\D/g, '')}_${d.lotteryId || ''}`;
+      setLocalBuffers(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) - d.amount) }));
     };
 
-    // When all plays are cleared — resetear buffer
-    const onCleared = () => setLocalBuffer(0);
+    // When all plays are cleared — resetear todos los buffers
+    const onCleared = () => setLocalBuffers({});
 
     window.addEventListener('nmv:ticket-created', onUpdate);
     window.addEventListener('nmv:businessid-ready', onUpdate);
@@ -182,6 +173,8 @@ export function usePlayLimit(
   useEffect(() => { fetchLimit(); }, [fetchLimit]);
 
   // ── Aplicar buffer local al disponible (auto-descuento en tiempo real) ──
+  const bufferKey = `${normalizeJugada(jugada)}_${lotteryId || ''}`;
+  const localBuffer = localBuffers[bufferKey] || 0;
   const effectiveResult: PlayLimitResult = {
     ...result,
     vendidos: result.vendidos + localBuffer,

@@ -1,8 +1,11 @@
 /**
  * useResultsAutoSync — NMV Lottery
- * Auto-fetches lottery results from loteriasdominicanas.com via CORS proxy
- * + Supabase Realtime subscription for instant admin updates
- * Polls every 60s during lottery hours (8AM–11PM)
+ * Prioridad: Supabase (datos del admin) > fuente externa > mock
+ * - Carga de Supabase primero (resultados que admin publica aparecen al instante)
+ * - Para fecha de hoy: suplementa con scraping externo (sólo agrega nuevos)
+ * - Para fechas anteriores: sólo Supabase
+ * - Realtime subscription para actualizaciones instantáneas
+ * - Acepta parámetro `targetDate` para navegación por fechas
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -31,7 +34,7 @@ const PROXIES = [
 
 const TARGET_URL = 'https://loteriasdominicanas.com/';
 
-// ── Mock results (shown when no live data is available) ─────────────────────────
+// ── Mock results (shown when no live data is available for today) ─────────────────────────
 const today = new Date().toISOString().slice(0, 10);
 export const MOCK_RESULTS: LiveResult[] = [
   { id: 'm1', lottery_name: 'Florida AM',      draw_date: today, draw_time: '11:00 AM', primera: '14', segunda: '73', tercera: '92', pick3: '147', pick4: '3057', pick5: '14739', source: 'mock' },
@@ -76,7 +79,7 @@ function parseLoteriasDominicanas(html: string): LiveResult[] {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const results: LiveResult[] = [];
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const todayFmt = format(new Date(), 'yyyy-MM-dd');
     const seen = new Set<string>();
 
     // Strategy 1: Common card selectors
@@ -91,13 +94,11 @@ function parseLoteriasDominicanas(html: string): LiveResult[] {
       if (cards.length === 0) continue;
 
       cards.forEach((card) => {
-        // Try to extract lottery name
         const nameEl = card.querySelector('h1,h2,h3,h4,h5,.name,.lottery-name,.sorteo-name,.title,.nombre,.card-title');
         const name = nameEl?.textContent?.trim();
         if (!name || name.length < 3) return;
         if (seen.has(name)) return;
 
-        // Try to extract numbers
         const numberEls = card.querySelectorAll('.numero,.bolita,.ball,.number,.winning-number,.num-ball,.digit,.result-number');
         const numbers = Array.from(numberEls)
           .map((el) => el.textContent?.trim()?.replace(/\D/g, '').padStart(2, '0'))
@@ -105,7 +106,6 @@ function parseLoteriasDominicanas(html: string): LiveResult[] {
 
         if (numbers.length === 0) return;
 
-        // Try to extract time
         const timeEl = card.querySelector('.time,.hora,.draw-time,.sorteo-time,.schedule-time,.hour');
         const drawTime = timeEl?.textContent?.trim().replace(/[^\d:APMapm\s]/g, '').trim();
 
@@ -113,13 +113,12 @@ function parseLoteriasDominicanas(html: string): LiveResult[] {
         const result: LiveResult = {
           id: `live-${name.toLowerCase().replace(/\s+/g, '-')}`,
           lottery_name: name.toUpperCase(),
-          draw_date: today,
+          draw_date: todayFmt,
           draw_time: drawTime,
           source: 'live',
           company: detectCompany(name),
         };
 
-        // Assign numbers based on count
         if (numbers.length >= 1) result.primera = numbers[0];
         if (numbers.length >= 2) result.segunda = numbers[1];
         if (numbers.length >= 3) result.tercera = numbers[2];
@@ -130,10 +129,10 @@ function parseLoteriasDominicanas(html: string): LiveResult[] {
         results.push(result);
       });
 
-      if (results.length > 0) break; // Found results with this selector
+      if (results.length > 0) break;
     }
 
-    // Strategy 2: Look for table rows with lottery data
+    // Strategy 2: Table rows
     if (results.length === 0) {
       const rows = doc.querySelectorAll('tr');
       rows.forEach((row) => {
@@ -147,7 +146,7 @@ function parseLoteriasDominicanas(html: string): LiveResult[] {
         results.push({
           id: `live-${name.toLowerCase().replace(/\s+/g, '-')}`,
           lottery_name: name.toUpperCase(),
-          draw_date: today,
+          draw_date: todayFmt,
           source: 'live',
           company: detectCompany(name),
           primera: nums[0],
@@ -170,14 +169,17 @@ function isLotteryHours(): boolean {
 }
 
 // ── Main hook ────────────────────────────────────────────────────────────────────
-export function useResultsAutoSync() {
+// targetDate: 'yyyy-MM-dd' — defaults to today
+export function useResultsAutoSync(targetDate?: string) {
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const dateToUse = targetDate || todayStr;
+  const isToday = dateToUse === todayStr;
+
   const [results, setResults] = useState<LiveResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const today = format(new Date(), 'yyyy-MM-dd');
 
   // ── Fetch from CORS proxy ──────────────────────────────────────────────────────
   const fetchExternal = useCallback(async (): Promise<LiveResult[]> => {
@@ -200,7 +202,7 @@ export function useResultsAutoSync() {
     return [];
   }, []);
 
-  // ── Save external results to Supabase (upsert) ────────────────────────────────
+  // ── Save external results to Supabase (upsert — sólo los nuevos) ──────────────
   const saveToSupabase = useCallback(async (liveResults: LiveResult[]) => {
     if (liveResults.length === 0) return;
     try {
@@ -216,72 +218,87 @@ export function useResultsAutoSync() {
         pick5: r.pick5 || null,
         company: r.company || null,
       }));
-      // Upsert on (lottery_name, draw_date) to avoid duplicates
       await supabase.from('lottery_results').upsert(rows, {
         onConflict: 'lottery_name,draw_date',
-        ignoreDuplicates: false,
+        ignoreDuplicates: true, // don't overwrite admin data
       });
-    } catch { /* silent — don't block UI */ }
+    } catch { /* silent */ }
   }, []);
 
-  // ── Load from Supabase ─────────────────────────────────────────────────────────
+  // ── Load from Supabase for a given date ────────────────────────────────────────
   const loadFromSupabase = useCallback(async (): Promise<LiveResult[]> => {
     try {
       const { data } = await supabase
         .from('lottery_results')
         .select('*')
-        .eq('draw_date', today)
+        .eq('draw_date', dateToUse)
         .order('draw_time', { ascending: true, nullsFirst: false });
       return ((data as LiveResult[]) || []).map((r) => ({ ...r, source: 'supabase' as const }));
     } catch {
       return [];
     }
-  }, [today]);
+  }, [dateToUse]);
 
-  // ── Main sync function ─────────────────────────────────────────────────────────
+  // ── Main sync — Supabase PRIMERO, externo sólo suplementa (sólo hoy) ──────────
   const sync = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
     setError(null);
 
     try {
-      // 1. Try external scrape
-      const external = await fetchExternal();
-
-      if (external.length > 0) {
-        // Save to Supabase in background
-        saveToSupabase(external).catch(() => {});
-        setResults(external);
+      // 1. Supabase FIRST — datos del admin siempre tienen prioridad
+      const fromDB = await loadFromSupabase();
+      if (fromDB.length > 0) {
+        setResults(fromDB);
         setLastUpdated(new Date());
-      } else {
-        // 2. Fallback to Supabase
-        const fromDB = await loadFromSupabase();
-        if (fromDB.length > 0) {
-          setResults(fromDB);
+      }
+
+      // 2. Solo para HOY: intentar fuente externa para suplementar
+      if (isToday) {
+        const external = await fetchExternal();
+        if (external.length > 0) {
+          // Merge: sólo agregar los que no están ya en Supabase (admin data wins)
+          const dbNames = new Set(fromDB.map(r => r.lottery_name.toUpperCase().trim()));
+          const onlyInExternal = external.filter(r => !dbNames.has(r.lottery_name.toUpperCase().trim()));
+
+          if (onlyInExternal.length > 0) {
+            // Guardar en Supabase con ignoreDuplicates — no pisa datos del admin
+            saveToSupabase(onlyInExternal).catch(() => {});
+            setResults(prev => {
+              const prevNames = new Set(prev.map(r => r.lottery_name.toUpperCase().trim()));
+              const toAdd = onlyInExternal.filter(r => !prevNames.has(r.lottery_name.toUpperCase().trim()));
+              return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+            });
+          }
+
+          // Si Supabase no tenía nada, usar externos directamente
+          if (fromDB.length === 0) {
+            setResults(external);
+          }
           setLastUpdated(new Date());
-        }
-        // If both are empty, keep existing results (don't flash empty)
-        if (external.length === 0 && fromDB.length === 0) {
+        } else if (fromDB.length === 0) {
           setError('Sin datos externos — mostrando últimos disponibles');
         }
+      } else if (fromDB.length === 0) {
+        // Fecha pasada sin datos en Supabase
+        setError('No hay resultados para esta fecha');
       }
-    } catch (e) {
+    } catch {
       setError('Error al obtener resultados');
     } finally {
       setLoading(false);
     }
-  }, [fetchExternal, saveToSupabase, loadFromSupabase]);
+  }, [fetchExternal, saveToSupabase, loadFromSupabase, isToday]);
 
-  // ── Supabase Realtime subscription ────────────────────────────────────────────
+  // ── Supabase Realtime — recarga cuando admin publica ─────────────────────────
   useEffect(() => {
     const channel = supabase
-      .channel('lottery-results-live')
+      .channel(`lottery-results-${dateToUse}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'lottery_results',
-        filter: `draw_date=eq.${today}`,
+        filter: `draw_date=eq.${dateToUse}`,
       }, () => {
-        // When admin adds a result, reload from DB
         loadFromSupabase().then((data) => {
           if (data.length > 0) {
             setResults(data);
@@ -292,22 +309,23 @@ export function useResultsAutoSync() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [today, loadFromSupabase]);
+  }, [dateToUse, loadFromSupabase]);
 
-  // ── Initial load + periodic polling ───────────────────────────────────────────
+  // ── Carga inicial + polling (solo hoy) ────────────────────────────────────────
   useEffect(() => {
+    setResults([]); // Limpiar al cambiar de fecha
+    setLastUpdated(null);
     sync(true);
 
-    // Poll every 60 seconds during lottery hours, every 5 min otherwise
+    if (!isToday) return; // No polling para fechas pasadas
     const interval = isLotteryHours() ? 60_000 : 300_000;
     timerRef.current = setInterval(() => sync(false), interval);
-
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [sync]);
+  }, [sync, isToday]);
 
-  // ── Refresh from DB when tab becomes visible ───────────────────────────────────
+  // ── Refresh al volver a la pestaña ────────────────────────────────────────────
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible') sync(false);
@@ -316,9 +334,9 @@ export function useResultsAutoSync() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [sync]);
 
-  // When no real data available, show mock results so the panel looks populated
-  const displayResults = results.length > 0 ? results : (!loading ? MOCK_RESULTS : []);
-  const isMockData = results.length === 0 && !loading;
+  // Mock sólo para HOY cuando no hay ningún dato real
+  const displayResults = results.length > 0 ? results : (!loading && isToday ? MOCK_RESULTS : []);
+  const isMockData = results.length === 0 && !loading && isToday;
 
   return { results: displayResults, loading, lastUpdated, error, isMockData, refresh: () => sync(true) };
 }

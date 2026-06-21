@@ -198,8 +198,8 @@ export default function GameTable({
           <span />
         </div>
 
-        {/* Body */}
-        <div style={{ backgroundColor: '#E0E0E0', flex: 1, minHeight: '280px' }}>
+        {/* Body — scrollable when plays overflow (max 8 rows visible = 320px) */}
+        <div style={{ backgroundColor: '#E0E0E0', flex: 1, minHeight: 0, overflowY: 'auto', maxHeight: '320px' }}>
           <AnimatePresence mode="popLayout">
             {plays.map((play, index) => (
               <motion.div
