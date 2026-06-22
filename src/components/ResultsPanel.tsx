@@ -247,14 +247,15 @@ export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
             title="Día anterior"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 28, height: 28, borderRadius: 6,
-              border: '1px solid #d1d5db', background: '#fff',
-              cursor: 'pointer', color: '#374151', flexShrink: 0,
+              width: 32, height: 32, borderRadius: 8,
+              border: 'none', background: '#0D9488',
+              cursor: 'pointer', color: '#fff', flexShrink: 0,
+              boxShadow: '0 1px 4px rgba(13,148,136,0.4)',
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f3f4f6'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#0f766e'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#0D9488'; }}
           >
-            <ChevronLeft size={15} />
+            <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
 
           {/* Fecha actual */}
@@ -272,21 +273,22 @@ export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
             title={isAtToday ? 'Ya estás en el día de hoy' : 'Día siguiente'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 28, height: 28, borderRadius: 6,
-              border: '1px solid #d1d5db',
-              background: isAtToday ? '#f9fafb' : '#fff',
+              width: 32, height: 32, borderRadius: 8,
+              border: 'none',
+              background: isAtToday ? '#e5e7eb' : '#0D9488',
               cursor: isAtToday ? 'not-allowed' : 'pointer',
-              color: isAtToday ? '#d1d5db' : '#374151',
+              color: isAtToday ? '#9ca3af' : '#fff',
               flexShrink: 0,
+              boxShadow: isAtToday ? 'none' : '0 1px 4px rgba(13,148,136,0.4)',
             }}
             onMouseEnter={(e) => {
-              if (!isAtToday) (e.currentTarget as HTMLButtonElement).style.background = '#f3f4f6';
+              if (!isAtToday) (e.currentTarget as HTMLButtonElement).style.background = '#0f766e';
             }}
             onMouseLeave={(e) => {
-              if (!isAtToday) (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+              if (!isAtToday) (e.currentTarget as HTMLButtonElement).style.background = '#0D9488';
             }}
           >
-            <ChevronRight size={15} />
+            <ChevronRight size={18} strokeWidth={2.5} />
           </button>
 
           {/* Status indicators */}
