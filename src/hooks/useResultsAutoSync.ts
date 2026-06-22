@@ -176,7 +176,8 @@ export function useResultsAutoSync(targetDate?: string) {
   const isToday = dateToUse === todayStr;
 
   const [results, setResults] = useState<LiveResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // true until first fetch completes
+  const [hasLoaded, setHasLoaded] = useState(false); // true after first Supabase check
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -247,6 +248,7 @@ export function useResultsAutoSync(targetDate?: string) {
     try {
       // 1. Supabase FIRST — datos del admin siempre tienen prioridad
       const fromDB = await loadFromSupabase();
+      setHasLoaded(true); // mark that we've received Supabase response (even if empty)
       if (fromDB.length > 0) {
         setResults(fromDB);
         setLastUpdated(new Date());
@@ -314,6 +316,7 @@ export function useResultsAutoSync(targetDate?: string) {
   // ── Carga inicial + polling (solo hoy) ────────────────────────────────────────
   useEffect(() => {
     setResults([]); // Limpiar al cambiar de fecha
+    setHasLoaded(false); // reset so mocks don't flash before new date loads
     setLastUpdated(null);
     sync(true);
 
@@ -334,9 +337,10 @@ export function useResultsAutoSync(targetDate?: string) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [sync]);
 
-  // Mock sólo para HOY cuando no hay ningún dato real
-  const displayResults = results.length > 0 ? results : (!loading && isToday ? MOCK_RESULTS : []);
-  const isMockData = results.length === 0 && !loading && isToday;
+  // Mock sólo para HOY cuando: carga completa + Supabase confirmó vacío + no hay externos
+  // NUNCA mostrar mocks mientras loading=true o hasLoaded=false (evita flash de datos falsos)
+  const isMockData = hasLoaded && results.length === 0 && !loading && isToday;
+  const displayResults = results.length > 0 ? results : (isMockData ? MOCK_RESULTS : []);
 
   return { results: displayResults, loading, lastUpdated, error, isMockData, refresh: () => sync(true) };
 }
