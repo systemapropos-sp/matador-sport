@@ -209,7 +209,7 @@ export function useResultsAutoSync(targetDate?: string) {
     try {
       const rows = liveResults.map((r) => ({
         lottery_name: r.lottery_name,
-        draw_date: r.draw_date,
+        result_date: r.draw_date,   // real column in Supabase
         draw_time: r.draw_time || null,
         primera: r.primera || null,
         segunda: r.segunda || null,
@@ -220,7 +220,7 @@ export function useResultsAutoSync(targetDate?: string) {
         company: r.company || null,
       }));
       await supabase.from('lottery_results').upsert(rows, {
-        onConflict: 'lottery_name,draw_date',
+        onConflict: 'lottery_name,result_date',
         ignoreDuplicates: true, // don't overwrite admin data
       });
     } catch { /* silent */ }
@@ -232,9 +232,14 @@ export function useResultsAutoSync(targetDate?: string) {
       const { data } = await supabase
         .from('lottery_results')
         .select('*')
-        .eq('draw_date', dateToUse)
+        .eq('result_date', dateToUse)   // real column name
         .order('draw_time', { ascending: true, nullsFirst: false });
-      return ((data as LiveResult[]) || []).map((r) => ({ ...r, source: 'supabase' as const }));
+      // Normalize result_date → draw_date so rest of code stays consistent
+      return ((data as LiveResult[]) || []).map((r: any) => ({
+        ...r,
+        draw_date: r.result_date || r.draw_date || dateToUse,
+        source: 'supabase' as const,
+      }));
     } catch {
       return [];
     }
@@ -299,7 +304,7 @@ export function useResultsAutoSync(targetDate?: string) {
         event: '*',
         schema: 'public',
         table: 'lottery_results',
-        filter: `draw_date=eq.${dateToUse}`,
+        filter: `result_date=eq.${dateToUse}`,
       }, () => {
         loadFromSupabase().then((data) => {
           if (data.length > 0) {
