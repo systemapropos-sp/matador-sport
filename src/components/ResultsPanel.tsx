@@ -348,7 +348,7 @@ export default function ResultsPanel({ isOpen }: ResultsPanelProps) {
               <RefreshCw size={32} className="animate-spin" style={{ margin: '0 auto 12px', display: 'block', color: '#4CAF50' }} />
               <p style={{ fontSize: 14, fontWeight: 600 }}>Obteniendo resultados…</p>
               <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
-                {isDateToday ? 'Conectando con Supabase y loteriasdominicanas.com' : `Buscando resultados del ${dateLabel}`}
+                {isDateToday ? 'Cargando resultados del admin…' : `Buscando resultados del ${dateLabel}`}
               </p>
             </div>
           ) : results.length === 0 ? (
